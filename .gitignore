@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+.nimi/local/
+.nimi/cache/

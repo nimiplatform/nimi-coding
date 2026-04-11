@@ -1,0 +1,37 @@
+work_types:
+  - id: bootstrap_product_hardening
+    requires_authority_gate: true
+    uses_methodology: true
+    notes: changes that affect .nimi truth, templates, CLI bootstrap behavior, or validators
+  - id: low_risk_narrow_fix
+    requires_authority_gate: false
+    uses_methodology: false
+    notes: narrow corrections may stay outside packetized execution when authority is already clear
+  - id: runtime_boundary_expansion
+    requires_authority_gate: true
+    uses_methodology: true
+    notes: any move toward topic lifecycle runtime, packet-bound run kernel, self-hosting, scheduler, notification, automation, or provider execution
+authority_gates:
+  - gate: bootstrap_seed_alignment
+    required_when:
+      - templates/bootstrap/** changes
+      - src/cli/init_or_repair_behavior_changes
+    enforcement: update templates, doctor expectations, and tests together
+  - gate: reconstructed_state_consistency
+    required_when:
+      - .nimi/spec/bootstrap-state.yaml mode is reconstruction_seeded
+    enforcement: all declared target truth files must exist and satisfy their section contract
+  - gate: runtime_boundary_preservation
+    required_when:
+      - any new CLI command or contract touches execution ownership
+    enforcement: reject changes that claim run kernel, scheduler, automation, notification, or provider runtime ownership inside boundary-complete standalone
+parallel_truth_policy:
+  canonical_surface: .nimi/spec/**
+  allowed_projections:
+    - README.md
+    - managed AI entrypoint blocks
+    - handoff, closeout, decision, ingest, and review payload projections
+  forbidden_parallel_truth:
+    - human-readable methodology guides that redefine .nimi authority
+    - operational logs or local artifacts promoted into tracked semantic truth
+    - vendor-specific runtime assumptions encoded as canonical product truth

@@ -1,0 +1,9 @@
+admissions: []
+admission_rules:
+  - explicit_manager_admission_is_required_before_high_risk_execution_becomes_canonical_semantic_truth
+  - local_only_closeout_decision_ingest_and_review_artifacts_must_not_become_canonical_truth_by_reference
+  - canonical_admission_must_summarize_manager_decision_without_promoting_operational_runtime_state
+semantic_constraints:
+  - admissions_record_canonical_semantic_outcome_only
+  - canonical_admission_requires_mechanically_valid_acceptance_artifact
+  - semantic_admission_must_fail_closed_on_missing_topic_or_packet_identity
