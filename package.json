@@ -1,9 +1,18 @@
 {
   "name": "@nimiplatform/nimi-coding",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "private": false,
   "description": "AI-native coding governance toolkit for bootstrapping .nimi/** into arbitrary projects.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nimiplatform/nimi-coding.git"
+  },
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "bin": {
     "nimicoding": "./bin/nimicoding.mjs"
   },
@@ -21,18 +30,22 @@
     "nimicoding"
   ],
   "dependencies": {
+    "@openai/codex-sdk": "^0.124.0",
     "yaml": "^2.8.1"
   },
   "files": [
     "bin",
-    "src",
-    "templates",
+    "cli",
     "adapters",
+    "config",
+    "contracts",
+    "methodology",
+    "spec",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "NIMICODING_LANG=en NO_COLOR=1 node --test",
     "check:pack": "npm pack --dry-run"
   }
 }

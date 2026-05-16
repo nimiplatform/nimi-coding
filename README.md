@@ -7,6 +7,27 @@ The product goal is to let arbitrary projects install a reusable AI coding
 governance toolkit, bootstrap a project-local `.nimi/**` layer, and then use
 AI-native authority, packet, and acceptance discipline for high-risk work.
 
+## Primary Path
+
+The primary `nimicoding` path is for an ordinary project with mixed inputs:
+
+1. gather code/docs/structure/human notes
+2. hand off `spec_reconstruction` to an external host
+3. generate a canonical tree under `/.nimi/spec/**`
+4. run `validate-spec-tree`
+5. run `validate-spec-audit`
+6. close out reconstruction
+7. hand off `doc_spec_audit` and close it out locally
+
+`blueprint-audit` and benchmark parity remain available, but they are
+support-only package fixtures. They do not define default reconstruction
+completion for a host project.
+
+In a host project, `/.nimi/spec/**` becomes product authority only after that
+project admits or reconstructs it. `nimicoding` provides the CLI, injected
+`.nimi/{config,contracts,methodology}/**` contracts, and validators; it does
+not make a host read package source paths directly.
+
 ## Current Status
 
 This repository is boundary-complete for its intended standalone scope.
@@ -16,7 +37,7 @@ Its completed standalone scope is:
 - package identity
 - repository foundation
 - initial AI-native methodology seed
-- package-owned reconstruction target-truth profile seed
+- package-owned support profile source for future governance slices
 - machine-readable reconstruction, doc-spec-audit, and high-risk execution result contracts
 - package-owned canonical high-risk admission schema contract
 - seed-only high-risk execution schemas for packet, orchestration-state, prompt, worker-output, and acceptance
@@ -30,14 +51,12 @@ Its completed standalone scope is:
 - fail-closed delegated skill installer result-contract seed
 - local-only installer operational evidence-home seed
 - fail-closed collapsed installer summary projection lifecycle-contract seed
-- package-owned bootstrap templates under `templates/bootstrap/**`
-- a bounded standalone CLI with repair, validation, handoff, local closeout projection, explicit admission, and mechanical execution-artifact validation
-- repository-local reconstructed `.nimi/spec/**` truth for this package itself
+- package-owned bootstrap source under `config/**`, `contracts/**`, `methodology/**`, and `spec/**`
+- a bounded standalone CLI with staged `start`, validation, handoff, local closeout projection, explicit admission, and mechanical execution-artifact validation
 - a host-agnostic semantic + interop boundary for external AI hosts such as OMX, Codex, Claude, Gemini, or another contract-observing host
 
 It intentionally defers:
 
-- topic lifecycle workspace
 - packet-bound run kernel
 - provider-backed execution
 - scheduler, notification, and automation backend surfaces
@@ -51,9 +70,11 @@ At the current stage it provides:
 
 - executable package bin wiring
 - help and version output
-- a minimal real `nimicoding init`
-- a bounded `nimicoding repair`
+- a primary `nimicoding start` entrypoint for bootstrap, resume, and next-stage AI task prep
+- a conservative `nimicoding clear` entrypoint for removing package-managed setup without deleting project-owned truth
 - a bounded `nimicoding doctor`
+- an explicit `nimicoding blueprint-audit` equivalence check for comparing a fixture or host blueprint root with the candidate canonical tree under `.nimi/spec`
+- surface validators for placement, table-family, projection-edge, guidance-body, domain-admission, and tracked-output admission boundaries
 - an explicit `nimicoding handoff` export
 - an explicit `nimicoding admit-high-risk-decision` semantic admission surface
 - a local-only `nimicoding closeout` projection
@@ -63,31 +84,135 @@ At the current stage it provides:
 - mechanical validators for execution-packet, orchestration-state, prompt, worker-output, and acceptance
 - skill-specific result contract seeding for reconstruction, doc/spec audit, and local-only high-risk execution closeout
 - seed-only execution contract extraction under `.nimi/contracts/**`
-- package-owned bootstrap templates under `templates/bootstrap/**`
+- package-owned bootstrap source projection from `config/**`, `contracts/**`, `methodology/**`, and `spec/**`
 
-Current `nimicoding init` behavior is intentionally narrow:
+Current `nimicoding start` behavior is intentionally narrow:
 
-- create a minimal `.nimi/**` seed from package templates
+- detect the current project state and continue from the right stage
+- create or resume the `.nimi/**` seed by projecting package-owned source into host paths
 - seed AI-native spec-reconstruction guidance inside `.nimi/**`
+- keep support-only methodology assets package-owned unless a host explicitly opts into them
 - seed package-owned machine contracts inside `.nimi/contracts/**`
 - seed package-owned execution schemas for future high-risk methodology artifacts without admitting runtime ownership
-- seed package-owned target-truth guidance for reconstruction outputs without creating empty `.nimi/spec/*.yaml` authority files
 - seed canonical skill-manifest, host-profile, installer, delegated runtime contract, installer result contract, installer operational evidence home, and external handoff truth inside `.nimi/**`
 - seed canonical host-adapter truth inside `.nimi/**` so external execution hosts can be admitted without becoming semantic owners
 - seed canonical collapsed installer summary projection lifecycle truth inside `.nimi/**`
 - update `.gitignore` for local runtime state
-- fail closed on re-init
+- optionally update `AGENTS.md` and `CLAUDE.md` as a staged confirmation inside `start`
+- explain one step at a time, confirm one step at a time, and apply one step at a time in interactive mode
+- prepare one authoritative JSON AI task package for `spec_reconstruction` or `doc_spec_audit` when the current project stage requires it
+- let the user choose a target host such as Codex, Claude, or oh-my-codex for that next AI task
+- print a short paste-ready prompt directly in the terminal during `start` instead of requiring users to open a generated prompt file
 - fail closed on unknown CLI options
-- optionally integrate `AGENTS.md` and `CLAUDE.md` with `--with-entrypoints`
 - validate bootstrap integrity and delegated-runtime posture with `doctor`
-
-Current `nimicoding repair` behavior is intentionally narrow:
-
-- create only missing bootstrap seed files under `.nimi/**`
-- recreate missing `.nimi/local/` and `.nimi/cache/`
-- optionally integrate `AGENTS.md` and `CLAUDE.md` with `--with-entrypoints`
 - preserve existing truth files rather than overwriting them
 - refuse unsupported bootstrap contract versions
+
+Current `nimicoding clear` behavior is intentionally narrow:
+
+- remove only managed AI blocks in `AGENTS.md` and `CLAUDE.md`
+- remove only package-owned bootstrap files under `.nimi/config/**`, `.nimi/contracts/**`, and `.nimi/methodology/**` when the local file still exactly matches the packaged seed
+- preserve locally modified bootstrap files even when they live under those package-owned bootstrap paths
+- preserve `.nimi/spec/**`, `.nimi/local/**`, and `.nimi/cache/**`
+- avoid deleting project-owned truth or local operational artifacts implicitly
+
+## Topic Lifecycle Reports
+
+Human-authored local report work now uses a topic lifecycle workspace rooted at:
+
+- `/.nimi/topics/**`
+
+Canonical topic lifecycle roots are:
+
+- `proposal`
+- `ongoing`
+- `pending`
+- `closed`
+
+The primary organization unit is a topic folder:
+
+- `.nimi/topics/<state>/YYYY-MM-DD-topic-slug/`
+
+Each topic folder should carry a lightweight `topic.yaml` state record and may
+include:
+
+- `README.md`
+- `design.md`
+- `preflight.md`
+- `waves.md`
+- `packet-*.md`
+- `closeout.md`
+
+Topic folder rules:
+
+- use sortable date-first topic ids: `YYYY-MM-DD-topic-slug`
+- express lifecycle by moving the topic folder between `proposal`, `ongoing`,
+  `pending`, and `closed`
+- keep one canonical copy of a topic at a time
+- record lifecycle transitions in `topic.yaml`; do not rely on folder moves
+  alone as the state evidence surface
+
+Canonical constraints:
+
+- human-authored topic lifecycle reports must use
+  `/.nimi/topics/{proposal|ongoing|pending|closed}/<topic-id>/**`
+- flat markdown files directly under `/.nimi/topics/` are outside the
+  admitted methodology model
+- `.local/report/**` is not an accepted root for human-authored topic
+  lifecycle reports; keep it only for execution evidence or machine outputs
+- `.local/work/**` is no longer the primary methodology workspace for
+  human-authored topic execution materials
+
+Applicability boundary:
+
+- topic workflow is intentionally heavy and not the default entrypoint for all
+  engineering work
+- use a topic when the work is authority-bearing, high-risk, cross-module,
+  multi-wave, or likely to need remediation / re-audit discipline
+- small low-risk changes should stay on the ordinary non-topic path unless there
+  is an explicit reason they need topic-level governance
+
+Development rhythm:
+
+- a topic is the canonical home for one major iteration line, not a micro
+  requirement backlog
+- waves are the bounded execution unit inside a topic
+- entering `ongoing` requires a topic-local `preflight.md` with one selected
+  next execution target, a bounded stop line, consumed inputs/contexts, expected
+  closeout checks, and explicit forbidden reopenings
+- `pending` is an optional no-active-development state for topics that are not
+  ready to close: use it when you want to distinguish "waiting on evidence or
+  an external trigger" from active `ongoing` work, and record explicit reopen
+  or close criteria instead of leaving that wait implicit
+- each wave should own one primary closure goal and end in a bounded result such
+  as an authority cut, implementation packet, bounded re-audit, or explicit
+  pause/defer note
+- planning-only waves may harden one execution target, but they must not chain
+  indefinitely; if no bounded closure is reached after a planning wave, pause or
+  re-preflight instead of opening unbounded new planning waves
+- closeout stays layered: context closure, wave closeout, and final topic
+  closeout are distinct evidence surfaces
+
+Avoid the older `slug-YYYY-MM-DD.md` shape because it sorts poorly and makes
+cross-report navigation harder. Stable machine report artifacts that are meant
+to behave like a current snapshot, such as `blueprint-equivalence-audit.json`,
+should keep their fixed names.
+
+## Canonical Spec Surface Model
+
+The package seeds the host-local contracts needed to reconstruct and validate a
+canonical spec tree without putting package methodology or lifecycle state under
+the host product-authority root.
+
+At this stage:
+
+- `config/**`, `contracts/**`, `methodology/**`, and `spec/**` are package source for the npm package
+- generated host projects receive injected `.nimi/{config,contracts,methodology}/**` projections and own their `.nimi/spec/**` product authority
+- `start`, `doctor`, `handoff`, `closeout`, and high-risk gating read host-local `.nimi/**` projections instead of requiring access to package source paths
+- `nimicoding blueprint-audit` remains the explicit audit surface for benchmark-vs-canonical equivalence checks; it does not perform routing changes on its own
+- canonical spec generation now reads mixed inputs from `.nimi/config/spec-generation-inputs.yaml` and treats any blueprint root as an optional benchmark rather than a universal host assumption
+- completed canonical reconstruction now requires structural validity and may carry file-level auditability under `.nimi/local/state/spec-generation/spec-generation-audit.yaml`
+- `nimicoding validate-spec-tree` checks canonical tree structure, while `nimicoding validate-spec-audit` checks per-file grounding, inference, and unresolved-gap tracking
 
 Current `nimicoding doctor` behavior is intentionally narrow:
 
@@ -108,9 +233,8 @@ Current `nimicoding doctor` behavior is intentionally narrow:
 - validate handoff context-order readiness for an external AI host
 - expose the standalone completion profile, status, completed surfaces, deferred execution surfaces, and promoted parity gaps
 - expose the generic external-host compatibility posture, admitted named overlay posture, and future-only host-specific surfaces
-- validate reconstructed `.nimi/spec/*.yaml` top-level section shape when files exist
 - validate canonical `.nimi/spec/high-risk-admissions.yaml` record shape against the packaged admission schema contract when present
-- fail closed when lifecycle state and target-truth completeness drift apart
+- fail closed when lifecycle state, canonical tree readiness, and auditability drift apart
 - report local `doc_spec_audit` closeout artifact status without promoting it to semantic truth
 - emit either human-readable output or machine-readable JSON with `--json`
 
@@ -127,7 +251,7 @@ Current `nimicoding handoff` behavior is intentionally narrow:
 - expose selected named adapter overlay metadata when an admitted host profile is selected
 - export `resultContractRef` plus skill-specific closeout summary expectations
 - export execution schema refs, expected artifact kinds, expected local artifact roots, and external execution summary status for `high_risk_execution`
-- refuse `doc_spec_audit` and `high_risk_execution` handoff until target truth is reconstructed
+- refuse `doc_spec_audit` and `high_risk_execution` handoff until the canonical tree under `.nimi/spec` is ready
 
 Current `nimicoding closeout` behavior is intentionally narrow:
 
@@ -135,7 +259,7 @@ Current `nimicoding closeout` behavior is intentionally narrow:
 - optionally import those fields plus an optional contract-validated `summary` from an external JSON payload with `--from`
 - project external skill results into a local-only closeout payload
 - optionally write the payload under `.nimi/local/handoff-results/` with `--write-local`
-- fail closed if a `completed` outcome contradicts the current target-truth state
+- fail closed if a `completed` outcome contradicts the current canonical-tree or audit state
 - support contract-validated local-only summary import for `high_risk_execution`
 - fail closed if imported high-risk execution refs escape the declared local artifact roots
 - fail closed if imported high-risk execution summaries omit refs, drift in shape, or claim an illegal external execution status
@@ -189,47 +313,35 @@ Current mechanical validator behavior is intentionally narrow:
 - fail closed on missing required sections, malformed YAML, or seed-contract drift
 - avoid semantic acceptance, topic orchestration, scheduler ownership, or provider execution claims
 
-The package now carries package-owned bootstrap templates at
-`templates/bootstrap/**`, a package-owned exchange projection contract at
-`.nimi/methodology/skill-exchange-projection.yaml`, package-owned machine
-result contracts at `.nimi/contracts/spec-reconstruction-result.yaml` and
-`.nimi/contracts/doc-spec-audit-result.yaml`,
-`.nimi/contracts/high-risk-execution-result.yaml`, and
-`.nimi/contracts/high-risk-admission.schema.yaml`,
-`.nimi/contracts/external-host-compatibility.yaml`, a package-owned external
-execution artifact landing-path contract at
-`.nimi/config/external-execution-artifacts.yaml`, plus seed-only extracted
-schemas for execution packet, orchestration-state, prompt, worker-output, and
-acceptance under `.nimi/contracts/**`. It also now seeds package-owned
-`host-adapter` truth plus package-owned adapter overlays under
-`adapters/**/profile.yaml` so external execution hosts such as `oh-my-codex`
-can be admitted as constrained bridges instead of semantic owners while
-keeping external execution closeout local-only, root-bounded, and
-non-semantic until an explicit manager-owned admission writes canonical
+The package now carries package-owned bootstrap source under `config/**`,
+`contracts/**`, `methodology/**`, and `spec/**`. `nimicoding start`
+projects those files into a host project's `/.nimi/**`
+surface at runtime. The package also carries adapter overlays under
+`adapters/**/profile.yaml` so external execution hosts such as
+`oh-my-codex` can be admitted as constrained bridges instead of semantic
+owners while keeping external execution closeout local-only, root-bounded,
+and non-semantic until an explicit manager-owned admission writes canonical
 summary truth into `.nimi/spec/high-risk-admissions.yaml`.
 
 Boundary-complete in this package does not mean promoted-runtime parity. The
-promoted execution system under
-[`/Users/snwozy/nimi-realm/nimi/nimi-coding`](/Users/snwozy/nimi-realm/nimi/nimi-coding)
-still owns topic lifecycle runtime, packet-bound run commands, provider-backed
-execution, scheduler, notification, and automation surfaces. Standalone does
-not add `run-*` commands, provider invocation, scheduler logic, or transport
-adapters in this cut.
+package-owned source lives directly under `config/**`, `contracts/**`,
+`methodology/**`, and `spec/**`. Only generated or adopted host projects use
+`.nimi/**`. Standalone does not add `run-*` commands, provider invocation,
+scheduler logic, or transport adapters in this cut.
 
 ## Intended Direction
 
 The expected future experience is roughly:
 
 1. install `@nimiplatform/nimi-coding`
-2. initialize project-local methodology structure
-3. connect AI entrypoints
-4. let an external AI host use seeded `.nimi/**` reconstruction guidance, reconstruction target-truth profile, manifest, host-profile, installer, delegated runtime contract, installer result contract, collapsed installer summary projection lifecycle contract, installer operational evidence guidance, and the authoritative handoff JSON contract to
-   reconstruct project truth
+2. run `nimicoding start`
+3. confirm or accept managed AI entrypoints
+4. let an external AI host use seeded `.nimi/**` reconstruction guidance, manifest, host-profile, installer, delegated runtime contract, installer result contract, collapsed installer summary projection lifecycle contract, installer operational evidence guidance, and the authoritative handoff JSON contract to
+   reconstruct the project canonical tree
 5. use the methodology for later high-risk work
 
 ## Development Posture
 
-This repository is the standalone boundary package. The promoted execution
-system authority for packet-bound runtime, provider-backed execution,
-scheduler, notification, and automation surfaces remains
-[`/Users/snwozy/nimi-realm/nimi/nimi-coding`](/Users/snwozy/nimi-realm/nimi/nimi-coding).
+This repository is the standalone boundary package. Deferred runtime surfaces
+such as packet-bound execution, provider-backed execution, scheduler,
+notification, and automation remain outside the packaged scope.

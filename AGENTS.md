@@ -10,17 +10,19 @@ Applies to the whole repository.
 
 ## Current Bootstrap Posture
 
-- `.nimi/**` is the primary AI truth surface for this repository.
+- Package-owned methodology source lives directly under `config/**`, `contracts/**`, `methodology/**`, and `spec/**`.
+- Generated or adopted host projects use `.nimi/**` as their project-local AI truth surface.
 - This repository is not self-hosting its own execution methodology yet.
-- Active high-risk execution topics remain governed by the validated `nimi-coding` system in the main Nimi repository until self-hosting is explicitly admitted.
+- Runtime ownership stays delegated to an external AI host or another tool boundary.
 
 ## Retrieval Defaults
 
-- Start with `.nimi/methodology/**`, `.nimi/spec/**`, `README.md`, and `package.json`.
-- Treat root `AGENTS.md` plus `.nimi/**` as the current local authority for AI behavior in this repository.
+- Start with `methodology/**`, `spec/**`, `contracts/**`, `config/**`, `README.md`, and `package.json`.
+- Treat root `AGENTS.md` plus those package source directories as the current local authority for package-internal AI behavior.
 
 ## Hard Boundaries
 
 - Do not treat this repository as methodology-complete yet.
 - Do not add CLI runtime, skill runtime, or self-hosting workflow unless the active packet explicitly admits it.
-- Keep `.nimi/**` AI-native and low-redundancy; do not add human-friendly parallel truth by default.
+- Keep package-owned source AI-native and low-redundancy; do not add human-friendly parallel truth by default.
+- Do not change the external project bootstrap contract away from `.nimi/**` unless the package contract itself is explicitly redesigned.

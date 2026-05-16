@@ -31,6 +31,7 @@ Treat the systems as layered rather than merged:
 OMX may read `.nimi/**` and produce execution artifacts, but it must not:
 
 - become the owner of `.nimi/spec/**`
+- treat cutover readiness as an authority flip
 - decide semantic acceptance or final disposition
 - redefine methodology state from `.omx/**` runtime state
 - bypass `nimicoding doctor`, `handoff`, or validator gates
@@ -78,7 +79,7 @@ admission schema contract before `nimicoding` accepts it as semantic truth.
 Run inside the target project:
 
 ```sh
-nimicoding init --with-entrypoints
+nimicoding start
 nimicoding doctor
 ```
 
@@ -95,8 +96,10 @@ nimicoding handoff --skill spec_reconstruction --json
 
 Use the JSON payload as OMX's machine contract. `--prompt` may still be used
 as a host briefing, but it is not the authoritative surface. OMX should
-return only the declared target truth outputs and must not invent new semantic
-owners.
+return only the declared canonical tree outputs and must not invent new semantic
+owners. In a host project, `.nimi/spec/**` is current authority only when the
+host has admitted or reconstructed it; OMX still must not redefine that
+authority or promote its own runtime state into semantic truth.
 
 Then project the closeout locally:
 
@@ -149,13 +152,12 @@ For now, treat OMX output as execution candidate material:
 
 In practice, this means the first real user can use OMX as the execution host
 today, while standalone `nimicoding` remains the host-agnostic semantic and
-interop boundary package. The promoted internal
-[`nimi-coding`](/Users/snwozy/nimi-realm/nimi/nimi-coding) still owns
-packet-bound runtime, provider-backed execution, scheduler, notification, and
-automation surfaces, even though standalone
-`nimicoding closeout` can now import a fail-closed local-only execution
-summary and `nimicoding ingest-high-risk-execution` can mechanically validate
-the referenced packet/prompt/output candidates while
+interop boundary package. The standalone package intentionally does not own
+packet-bound runtime, provider-backed execution, scheduler, notification, or
+automation surfaces yet, even though `nimicoding closeout` can import a
+fail-closed local-only execution summary and
+`nimicoding ingest-high-risk-execution` can mechanically validate the
+referenced packet/prompt/output candidates while
 `nimicoding review-high-risk-execution` can project a manager-ready local
 attachment bundle, `nimicoding decide-high-risk-execution` can record a
 manager-owned local disposition, and `nimicoding admit-high-risk-decision`

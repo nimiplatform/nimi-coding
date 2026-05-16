@@ -5,5 +5,3 @@ coverage/
 .DS_Store
 npm-debug.log*
 pnpm-debug.log*
-.nimi/local/
-.nimi/cache/
