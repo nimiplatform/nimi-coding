@@ -1,7 +1,30 @@
 node_modules/
+**/node_modules/
 dist/
 coverage/
 *.tgz
 .DS_Store
 npm-debug.log*
 pnpm-debug.log*
+.pnpm-store/
+
+# local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# local editor and cache state
+.vscode/
+.idea/
+.cache/
+.tmp/
+
+# local Nimi Coding operational artifacts
+.nimi/local/
+.nimi/cache/
+.nimi/topics/

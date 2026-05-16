@@ -43,6 +43,10 @@ test("package files publish canonical source dirs and start output matches sourc
   assert.ok(packageJson.files.includes("contracts"));
   assert.ok(packageJson.files.includes("methodology"));
   assert.ok(packageJson.files.includes("spec"));
+  assert.ok(packageJson.files.includes("README.zh-CN.md"));
+  assert.ok(packageJson.files.includes("CONTRIBUTING.md"));
+  assert.ok(packageJson.files.includes("SECURITY.md"));
+  assert.ok(packageJson.files.includes("CODE_OF_CONDUCT.md"));
   assert.ok(!packageJson.files.includes("templates"));
   await assert.doesNotReject(readFile(path.join(repoRoot, "methodology", "spec-target-truth-profile.yaml"), "utf8"));
 
@@ -195,13 +199,27 @@ test("doctor fails closed when v2 benchmark mode lacks a blueprint reference", a
 test("repo docs describe standalone package authority without monorepo cutover truth", async () => {
   const agents = await readFile(path.join(repoRoot, "AGENTS.md"), "utf8");
   const packageReadme = await readFile(path.join(repoRoot, "README.md"), "utf8");
+  const packageReadmeZh = await readFile(path.join(repoRoot, "README.zh-CN.md"), "utf8");
   const adapterReadme = await readFile(path.join(repoRoot, "adapters", "oh-my-codex", "README.md"), "utf8");
 
   assert.match(agents, /Package-owned methodology source lives directly under `config\/\*\*`, `contracts\/\*\*`, `methodology\/\*\*`, and `spec\/\*\*`/);
   assert.match(packageReadme, /standalone host-agnostic boundary package/i);
   assert.match(packageReadme, /does\s+not\s+make\s+a\s+host\s+read\s+package\s+source\s+paths\s+directly/i);
+  assert.match(packageReadmeZh, /standalone host-agnostic boundary package/i);
+  assert.match(packageReadmeZh, /包不会让 host 直接读取包源路径/i);
   assert.match(adapterReadme, /\.nimi\/spec\/\*\*` is current authority only when the\s+host has admitted or reconstructed it/i);
-  assert.doesNotMatch(`${agents}\n${packageReadme}\n${adapterReadme}`, /In this monorepo|nimi\/nimi-coding|check:spec-authority-cutover-readiness|\/Users\/snwozy\/nimi-realm\/nimi\/nimi-coding/);
+  assert.doesNotMatch(`${agents}\n${packageReadme}\n${packageReadmeZh}\n${adapterReadme}`, /In this monorepo|nimi\/nimi-coding|check:spec-authority-cutover-readiness|\/Users\/snwozy\/nimi-realm\/nimi\/nimi-coding/);
+});
+
+test("readme topic examples stay aligned with current CLI argument shape", async () => {
+  const packageReadme = await readFile(path.join(repoRoot, "README.md"), "utf8");
+  const packageReadmeZh = await readFile(path.join(repoRoot, "README.zh-CN.md"), "utf8");
+  const docs = `${packageReadme}\n${packageReadmeZh}`;
+
+  assert.match(docs, /nimicoding topic wave add <topic-id> <wave-id> <slug>\s+\\\n\s+--goal <text> --owner-domain <domain>/);
+  assert.match(docs, /nimicoding topic packet freeze <topic-id> --from <draft-path>/);
+  assert.doesNotMatch(docs, /nimicoding topic wave add <topic-id> --owner <domain> --goal <text>/);
+  assert.doesNotMatch(docs, /nimicoding topic packet freeze <topic-id> --wave <wave-id>/);
 });
 
 test("start output does not install pre-cutover readiness artifacts into host spec", async () => {

@@ -1,0 +1,66 @@
+- name: cli
+  color: "0075ca"
+  description: "Command-line interface"
+- name: contracts
+  color: "7057ff"
+  description: "Schemas and machine-readable contracts"
+- name: methodology
+  color: "0e8a16"
+  description: "Methodology source and policy"
+- name: adapters
+  color: "d876e3"
+  description: "External host adapter profiles"
+- name: docs
+  color: "1d76db"
+  description: "Documentation"
+- name: ci
+  color: "bfd4f2"
+  description: "CI/CD and repository automation"
+- name: bug
+  color: "d73a4a"
+  description: "Something is not working"
+- name: feature
+  color: "a2eeef"
+  description: "New feature request"
+- name: enhancement
+  color: "84b6eb"
+  description: "Improvement to existing behavior"
+- name: breaking
+  color: "b60205"
+  description: "Breaking change"
+- name: security
+  color: "ee0701"
+  description: "Security issue or hardening work"
+- name: needs-triage
+  color: "ededed"
+  description: "Needs maintainer triage"
+- name: good-first-issue
+  color: "7057ff"
+  description: "Good for newcomers"
+- name: help-wanted
+  color: "008672"
+  description: "Looking for contributors"
+- name: P0
+  color: "b60205"
+  description: "Critical priority"
+- name: P1
+  color: "d93f0b"
+  description: "High priority"
+- name: P2
+  color: "fbca04"
+  description: "Medium priority"
+- name: "size/XS"
+  color: "009900"
+  description: "Extra small change"
+- name: "size/S"
+  color: "77bb00"
+  description: "Small change"
+- name: "size/M"
+  color: "eebb00"
+  description: "Medium change"
+- name: "size/L"
+  color: "ee9900"
+  description: "Large change"
+- name: "size/XL"
+  color: "ee5500"
+  description: "Extra large change"

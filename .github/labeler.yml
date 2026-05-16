@@ -1,0 +1,38 @@
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "bin/**"
+          - "cli/**"
+
+contracts:
+  - changed-files:
+      - any-glob-to-any-file: "contracts/**"
+
+methodology:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "methodology/**"
+          - "spec/**"
+          - "config/**"
+
+adapters:
+  - changed-files:
+      - any-glob-to-any-file: "adapters/**"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "README.zh-CN.md"
+          - "CHANGELOG.md"
+          - "CONTRIBUTING.md"
+          - "SECURITY.md"
+          - "CODE_OF_CONDUCT.md"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "package.json"
+          - "pnpm-lock.yaml"
+          - "pnpm-workspace.yaml"

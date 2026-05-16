@@ -1,347 +1,375 @@
 # @nimiplatform/nimi-coding
 
-`@nimiplatform/nimi-coding` is the standalone host-agnostic boundary package
-for the Nimi Coding methodology.
+**English** · [简体中文](README.zh-CN.md)
 
-The product goal is to let arbitrary projects install a reusable AI coding
-governance toolkit, bootstrap a project-local `.nimi/**` layer, and then use
-AI-native authority, packet, and acceptance discipline for high-risk work.
+[![npm](https://img.shields.io/npm/v/@nimiplatform/nimi-coding.svg?label=npm)](https://www.npmjs.com/package/@nimiplatform/nimi-coding)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](#requirements)
 
-## Primary Path
+> A **vendor-neutral, AI-native methodology toolkit** for governing
+> high-risk AI-assisted software work. Bootstraps a project-local
+> `.nimi/**` truth surface, ships the `nimicoding` CLI, and turns
+> "AI plausibly finished this" into "the four closure dimensions
+> are evidenced."
 
-The primary `nimicoding` path is for an ordinary project with mixed inputs:
+Reader documentation: <https://docs.nimi.ai/nimicoding>
+npm package: [`@nimiplatform/nimi-coding`](https://www.npmjs.com/package/@nimiplatform/nimi-coding)
 
-1. gather code/docs/structure/human notes
-2. hand off `spec_reconstruction` to an external host
-3. generate a canonical tree under `/.nimi/spec/**`
-4. run `validate-spec-tree`
-5. run `validate-spec-audit`
-6. close out reconstruction
-7. hand off `doc_spec_audit` and close it out locally
+---
 
-`blueprint-audit` and benchmark parity remain available, but they are
-support-only package fixtures. They do not define default reconstruction
-completion for a host project.
+## Why This Exists
 
-In a host project, `/.nimi/spec/**` becomes product authority only after that
-project admits or reconstructs it. `nimicoding` provides the CLI, injected
-`.nimi/{config,contracts,methodology}/**` contracts, and validators; it does
-not make a host read package source paths directly.
+AI-assisted implementation routinely produces output that **compiles,
+passes existing tests, looks plausible to a reviewer, and is still
+wrong** about authority, scope, semantics, or product meaning. These
+are not bugs in the conventional sense — they are *closure failures*:
+the work was claimed done in a state where the closure conditions had
+not actually held.
 
-## Current Status
+A short, non-exhaustive list of failure shapes Nimi Coding is
+designed to catch:
 
-This repository is boundary-complete for its intended standalone scope.
+- **Stale-doc anchoring** — the assistant follows a document that
+  looked authoritative but had drifted from the active spec.
+- **Implicit scope expansion** — the assistant edits an adjacent
+  surface "while it's in the file"; ownership silently shifts.
+- **Plausible synthesis** — when authoritative source is missing,
+  the assistant invents a coherent answer indistinguishable from a
+  real one.
+- **Old-route preservation** — a new route is added alongside the
+  old one as "safe migration"; the old route was supposed to be
+  deleted.
+- **Build-pass closure** — work declared done because tests run,
+  even though consumer-facing behavior is wrong.
+- **Pseudo-success** — a typed contract failure is hidden behind a
+  fallback that returns "something" instead of failing closed.
 
-Its completed standalone scope is:
+Better prompts and better tests do not address this. The loop
+reviewing the AI's output is the same loop that produced it. Nimi
+Coding introduces **structural separation** instead.
 
-- package identity
-- repository foundation
-- initial AI-native methodology seed
-- package-owned support profile source for future governance slices
-- machine-readable reconstruction, doc-spec-audit, and high-risk execution result contracts
-- package-owned canonical high-risk admission schema contract
-- seed-only high-risk execution schemas for packet, orchestration-state, prompt, worker-output, and acceptance
-- vendor-neutral external host-profile seed
-- package-owned external host compatibility contract seed
-- host-adapter seed for constrained external execution-host interop
-- package-owned admitted host-profile overlay seed for `oh_my_codex`
-- package-owned external execution artifact landing-path contract seed
-- vendor-neutral external delegated skill runtime contract seed
-- vendor-neutral delegated skill installer seed
-- fail-closed delegated skill installer result-contract seed
-- local-only installer operational evidence-home seed
-- fail-closed collapsed installer summary projection lifecycle-contract seed
-- package-owned bootstrap source under `config/**`, `contracts/**`, `methodology/**`, and `spec/**`
-- a bounded standalone CLI with staged `start`, validation, handoff, local closeout projection, explicit admission, and mechanical execution-artifact validation
-- a host-agnostic semantic + interop boundary for external AI hosts such as OMX, Codex, Claude, Gemini, or another contract-observing host
+## What Nimi Coding Is (And Is Not)
 
-It intentionally defers:
+Nimi Coding is **not** another AI coding assistant. It does not write
+code, dispatch to a provider, or run an agent loop.
 
-- packet-bound run kernel
-- provider-backed execution
-- scheduler, notification, and automation backend surfaces
+It is the **standalone host-agnostic boundary package** that sits as
+a governance layer under whichever AI host you use (Claude, Codex,
+Gemini, OMX, or your own). It ships:
+
+- a package-owned **methodology** under `methodology/**`
+- typed **contracts** under `contracts/**`
+- **bootstrap + host profile** config under `config/**`
+- a **bootstrap spec seed** under `spec/**`
+- the **`nimicoding` CLI** for bootstrap, validation, skill handoff,
+  local closeout, topic lifecycle, sweep audit, sweep design, and
+  high-risk execution gates
+- **host adapter** profile overlays for external AI hosts
+
+It deliberately does **not** ship:
+
+- a packet-bound run kernel
+- provider-backed AI execution
+- a scheduler
+- notification infrastructure
+- an automation backend
 - self-hosted methodology execution
 
-## CLI Status
+Runtime ownership stays with an external AI host. The methodology
+and contracts stay portable. You can change AI hosts tomorrow
+without changing the methodology contract.
 
-This repository now carries a boundary-complete standalone `nimicoding` CLI.
+When a host project runs `nimicoding start`, the package-owned
+sources are *projected* into that project's
+`.nimi/{config,contracts,methodology,spec}/**` surface. The adopted
+project then owns its `.nimi/spec/**` product authority. **The
+package does not make a host read package source paths directly** —
+the adopted project always reads its own projected `.nimi/**`.
 
-At the current stage it provides:
+## The Mental Model
 
-- executable package bin wiring
-- help and version output
-- a primary `nimicoding start` entrypoint for bootstrap, resume, and next-stage AI task prep
-- a conservative `nimicoding clear` entrypoint for removing package-managed setup without deleting project-owned truth
-- a bounded `nimicoding doctor`
-- an explicit `nimicoding blueprint-audit` equivalence check for comparing a fixture or host blueprint root with the candidate canonical tree under `.nimi/spec`
-- surface validators for placement, table-family, projection-edge, guidance-body, domain-admission, and tracked-output admission boundaries
-- an explicit `nimicoding handoff` export
-- an explicit `nimicoding admit-high-risk-decision` semantic admission surface
-- a local-only `nimicoding closeout` projection
-- a bounded local-only `nimicoding ingest-high-risk-execution` projection
-- a bounded local-only `nimicoding review-high-risk-execution` projection
-- a bounded local-only `nimicoding decide-high-risk-execution` projection
-- mechanical validators for execution-packet, orchestration-state, prompt, worker-output, and acceptance
-- skill-specific result contract seeding for reconstruction, doc/spec audit, and local-only high-risk execution closeout
-- seed-only execution contract extraction under `.nimi/contracts/**`
-- package-owned bootstrap source projection from `config/**`, `contracts/**`, `methodology/**`, and `spec/**`
+Four moves separate Nimi Coding from a checklist:
 
-Current `nimicoding start` behavior is intentionally narrow:
+| Move | What it means |
+| --- | --- |
+| **Authority is named** | Every change names where its truth lives (`.nimi/spec/**`), who owns the surface, and what kind of work is happening. |
+| **Execution is packetized** | Implementation is bounded by a frozen packet declaring allowed reads, allowed writes, acceptance invariants, negative tests, stop lines, and reopen conditions — *before* the worker begins. |
+| **Closure is multidimensional** | Four independent closure gates — Authority, Semantic, Consumer, Drift Resistance — must all hold. Three out of four is not closed. |
+| **Roles are separated** | Manager owns wave admission and judgement; Worker owns the packet write set; Auditor performs structural review from a **structurally separate loop** (a different AI session, a different vendor). |
 
-- detect the current project state and continue from the right stage
-- create or resume the `.nimi/**` seed by projecting package-owned source into host paths
-- seed AI-native spec-reconstruction guidance inside `.nimi/**`
-- keep support-only methodology assets package-owned unless a host explicitly opts into them
-- seed package-owned machine contracts inside `.nimi/contracts/**`
-- seed package-owned execution schemas for future high-risk methodology artifacts without admitting runtime ownership
-- seed canonical skill-manifest, host-profile, installer, delegated runtime contract, installer result contract, installer operational evidence home, and external handoff truth inside `.nimi/**`
-- seed canonical host-adapter truth inside `.nimi/**` so external execution hosts can be admitted without becoming semantic owners
-- seed canonical collapsed installer summary projection lifecycle truth inside `.nimi/**`
-- update `.gitignore` for local runtime state
-- optionally update `AGENTS.md` and `CLAUDE.md` as a staged confirmation inside `start`
-- explain one step at a time, confirm one step at a time, and apply one step at a time in interactive mode
-- prepare one authoritative JSON AI task package for `spec_reconstruction` or `doc_spec_audit` when the current project stage requires it
-- let the user choose a target host such as Codex, Claude, or oh-my-codex for that next AI task
-- print a short paste-ready prompt directly in the terminal during `start` instead of requiring users to open a generated prompt file
-- fail closed on unknown CLI options
-- validate bootstrap integrity and delegated-runtime posture with `doctor`
-- preserve existing truth files rather than overwriting them
-- refuse unsupported bootstrap contract versions
+See [Four Closures](https://docs.nimi.ai/nimicoding/four-closures) and
+[The Paradigm](https://docs.nimi.ai/nimicoding/the-paradigm) for the
+full framework.
 
-Current `nimicoding clear` behavior is intentionally narrow:
+## Who This Is For
 
-- remove only managed AI blocks in `AGENTS.md` and `CLAUDE.md`
-- remove only package-owned bootstrap files under `.nimi/config/**`, `.nimi/contracts/**`, and `.nimi/methodology/**` when the local file still exactly matches the packaged seed
-- preserve locally modified bootstrap files even when they live under those package-owned bootstrap paths
-- preserve `.nimi/spec/**`, `.nimi/local/**`, and `.nimi/cache/**`
-- avoid deleting project-owned truth or local operational artifacts implicitly
+| Persona | What you get |
+| --- | --- |
+| Solo founder shipping with AI | Team-scale review discipline without a team — route the auditor through a second AI session on the same laptop |
+| Small team (2–5) adopting AI | Structural review redundancy that scales without headcount |
+| OSS maintainer accepting AI-authored PRs | Provable contribution discipline — packet boundaries, typed evidence, four-closure gates |
+| Organization under AI-coding compliance pressure | Audit trail and structured acceptance independent of any single AI vendor |
+| Researcher studying AI engineering practice | Observable methodology corpus over real repository history |
 
-## Topic Lifecycle Reports
+If you have ever watched an AI-assisted change look complete to every
+available signal — type checker green, tests green, reviewer
+approved — and turn out to be wrong about authority, scope, or
+product meaning, this package is for you.
 
-Human-authored local report work now uses a topic lifecycle workspace rooted at:
+## Requirements
 
-- `/.nimi/topics/**`
+| Requirement | Version |
+| --- | --- |
+| Node.js | `>=24.0.0` |
+| Package manager (consumer) | npm, pnpm, yarn, or compatible |
+| pnpm (repository development) | `>=10.0.0` |
 
-Canonical topic lifecycle roots are:
+A version-controlled project is recommended — `start` creates files.
 
-- `proposal`
-- `ongoing`
-- `pending`
-- `closed`
+## Install
 
-The primary organization unit is a topic folder:
+In the repository that should receive the `.nimi/**` governance
+layer:
 
-- `.nimi/topics/<state>/YYYY-MM-DD-topic-slug/`
+```bash
+npm install --save-dev @nimiplatform/nimi-coding
+# or
+pnpm add -D @nimiplatform/nimi-coding
+```
 
-Each topic folder should carry a lightweight `topic.yaml` state record and may
-include:
+Check the CLI:
 
-- `README.md`
-- `design.md`
-- `preflight.md`
-- `waves.md`
-- `packet-*.md`
-- `closeout.md`
+```bash
+npx nimicoding --version
+npx nimicoding --help
+```
 
-Topic folder rules:
+## 5-Minute Minimal Path
 
-- use sortable date-first topic ids: `YYYY-MM-DD-topic-slug`
-- express lifecycle by moving the topic folder between `proposal`, `ongoing`,
-  `pending`, and `closed`
-- keep one canonical copy of a topic at a time
-- record lifecycle transitions in `topic.yaml`; do not rely on folder moves
-  alone as the state evidence surface
+Most projects should start small. The first successful path is:
 
-Canonical constraints:
+```bash
+# 1. Bootstrap .nimi/** in your project root
+npx nimicoding start
 
-- human-authored topic lifecycle reports must use
-  `/.nimi/topics/{proposal|ongoing|pending|closed}/<topic-id>/**`
-- flat markdown files directly under `/.nimi/topics/` are outside the
-  admitted methodology model
-- `.local/report/**` is not an accepted root for human-authored topic
-  lifecycle reports; keep it only for execution evidence or machine outputs
-- `.local/work/**` is no longer the primary methodology workspace for
-  human-authored topic execution materials
+# 2. Check the bootstrap is healthy
+npx nimicoding doctor --json
 
-Applicability boundary:
+# 3. Hand off canonical spec reconstruction to your AI host
+npx nimicoding handoff --skill spec_reconstruction --json
 
-- topic workflow is intentionally heavy and not the default entrypoint for all
-  engineering work
-- use a topic when the work is authority-bearing, high-risk, cross-module,
-  multi-wave, or likely to need remediation / re-audit discipline
-- small low-risk changes should stay on the ordinary non-topic path unless there
-  is an explicit reason they need topic-level governance
+# 4. After the host consumes that payload and materializes .nimi/spec/**,
+#    validate the canonical tree
+npx nimicoding validate-spec-tree .nimi/spec
+npx nimicoding validate-spec-audit
+```
 
-Development rhythm:
+After this, you have a project-local `.nimi/**` truth surface, a
+typed reconstruction of project authority into `.nimi/spec/**`, and
+mechanical validators you can re-run on every change.
 
-- a topic is the canonical home for one major iteration line, not a micro
-  requirement backlog
-- waves are the bounded execution unit inside a topic
-- entering `ongoing` requires a topic-local `preflight.md` with one selected
-  next execution target, a bounded stop line, consumed inputs/contexts, expected
-  closeout checks, and explicit forbidden reopenings
-- `pending` is an optional no-active-development state for topics that are not
-  ready to close: use it when you want to distinguish "waiting on evidence or
-  an external trigger" from active `ongoing` work, and record explicit reopen
-  or close criteria instead of leaving that wait implicit
-- each wave should own one primary closure goal and end in a bounded result such
-  as an authority cut, implementation packet, bounded re-audit, or explicit
-  pause/defer note
-- planning-only waves may harden one execution target, but they must not chain
-  indefinitely; if no bounded closure is reached after a planning wave, pause or
-  re-preflight instead of opening unbounded new planning waves
-- closeout stays layered: context closure, wave closeout, and final topic
-  closeout are distinct evidence surfaces
+`handoff` exports an authoritative task payload. It does not call an AI
+provider or run the reconstruction itself; the external host must
+consume the payload, write or return the expected artifacts, and then
+the local validators check the result.
 
-Avoid the older `slug-YYYY-MM-DD.md` shape because it sorts poorly and makes
-cross-report navigation harder. Stable machine report artifacts that are meant
-to behave like a current snapshot, such as `blueprint-equivalence-audit.json`,
-should keep their fixed names.
+You do **not** need to create topics, freeze packets, or run
+high-risk gates for ordinary low-risk changes. Those tools exist for
+authority-bearing, cross-module, multi-wave, or audit-sensitive work.
 
-## Canonical Spec Surface Model
+To remove only package-managed bootstrap material from a test
+project (preserves `.nimi/spec/**`, `.nimi/local/**`, `.nimi/cache/**`,
+and locally modified bootstrap files):
 
-The package seeds the host-local contracts needed to reconstruct and validate a
-canonical spec tree without putting package methodology or lifecycle state under
-the host product-authority root.
+```bash
+npx nimicoding clear --yes
+```
 
-At this stage:
+## When You Need More: Topics, Waves, Packets
 
-- `config/**`, `contracts/**`, `methodology/**`, and `spec/**` are package source for the npm package
-- generated host projects receive injected `.nimi/{config,contracts,methodology}/**` projections and own their `.nimi/spec/**` product authority
-- `start`, `doctor`, `handoff`, `closeout`, and high-risk gating read host-local `.nimi/**` projections instead of requiring access to package source paths
-- `nimicoding blueprint-audit` remains the explicit audit surface for benchmark-vs-canonical equivalence checks; it does not perform routing changes on its own
-- canonical spec generation now reads mixed inputs from `.nimi/config/spec-generation-inputs.yaml` and treats any blueprint root as an optional benchmark rather than a universal host assumption
-- completed canonical reconstruction now requires structural validity and may carry file-level auditability under `.nimi/local/state/spec-generation/spec-generation-audit.yaml`
-- `nimicoding validate-spec-tree` checks canonical tree structure, while `nimicoding validate-spec-audit` checks per-file grounding, inference, and unresolved-gap tracking
+For authority-bearing, high-risk, or cross-module work, escalate to
+the topic lifecycle. A topic groups one strategic change; waves split
+the topic into bounded units of work; each wave freezes a **packet**
+before the worker begins.
 
-Current `nimicoding doctor` behavior is intentionally narrow:
+```bash
+nimicoding topic create <slug> --justification <text>
+nimicoding topic wave add <topic-id> <wave-id> <slug> \
+  --goal <text> --owner-domain <domain>
+nimicoding topic packet freeze <topic-id> --from <draft-path>
+nimicoding handoff --skill high_risk_execution --json
+nimicoding ingest-high-risk-execution --from result.json
+nimicoding review-high-risk-execution --from ingest.json
+nimicoding decide-high-risk-execution --from review.json \
+  --acceptance accept.md --verified-at <iso8601>
+```
 
-- validate that `.nimi/**` bootstrap seed files are present
-- validate that `.nimi/local/` and `.nimi/cache/` exist and remain ignored
-- validate bootstrap contract compatibility metadata
-- validate bootstrap-only and reconstruction-seeded lifecycle markers
-- validate cross-contract reference alignment across manifest, handoff, runtime, installer, and host-profile truth
-- validate host-adapter boundary truth and adapter selection posture
-- validate admitted package-owned adapter profile overlays for named external hosts
-- validate the packaged external host compatibility contract
-- expose the supported external host posture, examples, and required/forbidden host behavior
-- validate skill result-contract alignment
-- validate the packaged high-risk execution result contract
-- validate the packaged canonical high-risk admission schema contract
-- validate the external execution artifact landing-path contract
-- validate seed-only high-risk execution schemas under `.nimi/contracts/**`
-- validate handoff context-order readiness for an external AI host
-- expose the standalone completion profile, status, completed surfaces, deferred execution surfaces, and promoted parity gaps
-- expose the generic external-host compatibility posture, admitted named overlay posture, and future-only host-specific surfaces
-- validate canonical `.nimi/spec/high-risk-admissions.yaml` record shape against the packaged admission schema contract when present
-- fail closed when lifecycle state, canonical tree readiness, and auditability drift apart
-- report local `doc_spec_audit` closeout artifact status without promoting it to semantic truth
-- emit either human-readable output or machine-readable JSON with `--json`
+Each step is bounded by typed validation. Skipping a step or
+smuggling fields through means the CLI refuses (fail closed, no
+exceptions).
 
-Current `nimicoding handoff` behavior is intentionally narrow:
+## The Four Declared Skills
 
-- require explicit `--skill <skill-id>`
-- export an authoritative machine-readable external handoff payload with `--json`
-- optionally project a human-readable host briefing with `--prompt`
-- remain host-agnostic: Claude, Codex, Gemini, OMX, or another external host may consume the same contract if it respects the declared boundaries
-- export the package-owned host compatibility contract ref, supported host posture, supported host examples, and required/forbidden host behavior
-- expose whether a generic external host is compatible, whether a named admitted overlay is merely available or currently selected, and which host-specific surfaces remain future-only
-- reuse `doctor` validation and fail closed when bootstrap or delegated handoff posture is invalid
-- allow `spec_reconstruction` handoff during bootstrap-only mode
-- expose selected named adapter overlay metadata when an admitted host profile is selected
-- export `resultContractRef` plus skill-specific closeout summary expectations
-- export execution schema refs, expected artifact kinds, expected local artifact roots, and external execution summary status for `high_risk_execution`
-- refuse `doc_spec_audit` and `high_risk_execution` handoff until the canonical tree under `.nimi/spec` is ready
+External AI hosts implement these skills; the `handoff` CLI emits a
+machine-readable payload for each:
 
-Current `nimicoding closeout` behavior is intentionally narrow:
+| Skill | Purpose | Required at bootstrap |
+| --- | --- | --- |
+| `spec_reconstruction` | Reconstruct canonical project authority into `.nimi/spec/**` with source basis and unresolved-gap tracking | yes |
+| `doc_spec_audit` | Audit per-file grounding and inference against the canonical tree | yes |
+| `audit_sweep` | Split a target root into auditable chunks and record typed evidence | no |
+| `high_risk_execution` | Execute admitted high-risk packets with typed packet / orchestration / prompt / worker-output / acceptance evidence | no |
 
-- require explicit `--skill`, `--outcome`, and `--verified-at`
-- optionally import those fields plus an optional contract-validated `summary` from an external JSON payload with `--from`
-- project external skill results into a local-only closeout payload
-- optionally write the payload under `.nimi/local/handoff-results/` with `--write-local`
-- fail closed if a `completed` outcome contradicts the current canonical-tree or audit state
-- support contract-validated local-only summary import for `high_risk_execution`
-- fail closed if imported high-risk execution refs escape the declared local artifact roots
-- fail closed if imported high-risk execution summaries omit refs, drift in shape, or claim an illegal external execution status
-- fail closed if imported `summary` content violates the declared skill result contract
-- fail closed if an imported JSON summary does not match the current project or required shape
-- never promote local closeout artifacts to project semantic truth
+See [Skills](https://docs.nimi.ai/nimicoding/skills) for contract
+detail.
 
-Current `nimicoding admit-high-risk-decision` behavior is intentionally narrow:
+## CLI Surface
 
-- require explicit `--from <json>` and `--admitted-at <iso8601>`
-- accept only `nimicoding.high-risk-decision.v1` payloads with `decisionStatus: manager_decision_recorded`
-- derive `topic_id` and `packet_id` from the mechanically valid attached packet
-- project canonical admission preview for `.nimi/spec/high-risk-admissions.yaml`
-- write tracked semantic truth only when `--write-spec` is given explicitly
-- fail closed on malformed decision payloads, malformed admissions truth, or missing packet identity
+Common commands, grouped by entry scenario:
 
-Current `nimicoding ingest-high-risk-execution` behavior is intentionally narrow:
+```bash
+# Bootstrap
+nimicoding start
+nimicoding sync --check
+nimicoding doctor --json
+nimicoding clear --yes
 
-- require explicit `--from <json>` pointing at a local high-risk closeout artifact
-- accept only `high_risk_execution` closeout artifacts with `outcome: completed` and `summary.status: candidate_ready`
-- mechanically validate the referenced packet, orchestration-state, prompt, and worker-output artifacts using the packaged validators
-- require all evidence refs to exist under the declared local artifact roots
-- project a local-only ingest payload and optionally write it under `.nimi/local/handoff-results/`
-- fail closed on contract drift, root escape, missing artifacts, or invalid worker-output/prompt/schema shape
-- never decide semantic acceptance, disposition, or finding judgment
+# Skill handoff and local closeout
+nimicoding handoff --skill <id> --json
+nimicoding closeout --from result.json --write-local
 
-Current `nimicoding review-high-risk-execution` behavior is intentionally narrow:
+# Spec audit
+nimicoding validate-spec-tree .nimi/spec
+nimicoding validate-spec-audit
+nimicoding blueprint-audit
 
-- require explicit `--from <json>` pointing at a local high-risk ingest artifact
-- accept only `nimicoding.high-risk-ingest.v1` payloads with `ok: true`
-- project a local-only review-ready attachment payload for manager-owned review
-- carry attachment refs, ingest validation evidence, and the declared semantic review owner
-- fail closed if the ingest payload is malformed, not local-only, or mechanically invalid
-- never decide semantic acceptance, disposition, or finding judgment
+# Topic lifecycle
+nimicoding topic create <slug> --justification <text>
+nimicoding topic wave add|select|admit ...
+nimicoding topic packet freeze ...
+nimicoding topic worker dispatch ...
+nimicoding topic result record ...
+nimicoding topic closeout ...
+nimicoding topic true-close-audit ...
+nimicoding topic run-next-step <topic-id> --json
 
-Current `nimicoding decide-high-risk-execution` behavior is intentionally narrow:
+# Sweep audit / sweep design
+nimicoding sweep audit plan --root <dir> --json
+nimicoding sweep audit chunk ...
+nimicoding sweep design intake|packet-build|result-ingest|finalize ...
 
-- require explicit `--from <json>`, `--acceptance <path>`, and `--verified-at <iso8601>`
-- accept only `nimicoding.high-risk-review.v1` payloads with `ok: true`
-- require `reviewStatus: ready_for_manager_review`
-- mechanically validate the provided acceptance artifact and require an explicit `Disposition:` line
-- project a local-only manager decision payload and optionally write it under `.nimi/local/handoff-results/`
-- fail closed if the review payload is malformed, not local-only, or points at another project
-- never auto-promote the manager decision into canonical semantic truth without explicit admission
+# High-risk execution gates
+nimicoding admit-high-risk-decision --from <json> --admitted-at <iso8601>
+nimicoding ingest-high-risk-execution --from <json>
+nimicoding review-high-risk-execution --from <json>
+nimicoding decide-high-risk-execution --from <json> \
+  --acceptance <path> --verified-at <iso8601>
 
-Current mechanical validator behavior is intentionally narrow:
+# Mechanical artifact validators
+nimicoding validate-execution-packet <path>
+nimicoding validate-orchestration-state <path>
+nimicoding validate-prompt <path>
+nimicoding validate-worker-output <path>
+nimicoding validate-acceptance <path>
+```
 
-- require an explicit artifact path for each validator command
-- emit machine-readable `validator-cli-result.v1` JSON on both success and refusal
-- validate only the package-owned seed contract shape for execution-packet, orchestration-state, prompt, worker-output, and acceptance
-- fail closed on missing required sections, malformed YAML, or seed-contract drift
-- avoid semantic acceptance, topic orchestration, scheduler ownership, or provider execution claims
+Conceptual CLI overview:
+<https://docs.nimi.ai/nimicoding/cli>
+Field-level reference:
+<https://docs.nimi.ai/nimicoding/reference/cli-commands>
 
-The package now carries package-owned bootstrap source under `config/**`,
-`contracts/**`, `methodology/**`, and `spec/**`. `nimicoding start`
-projects those files into a host project's `/.nimi/**`
-surface at runtime. The package also carries adapter overlays under
-`adapters/**/profile.yaml` so external execution hosts such as
-`oh-my-codex` can be admitted as constrained bridges instead of semantic
-owners while keeping external execution closeout local-only, root-bounded,
-and non-semantic until an explicit manager-owned admission writes canonical
-summary truth into `.nimi/spec/high-risk-admissions.yaml`.
+## How Does This Compare To …
 
-Boundary-complete in this package does not mean promoted-runtime parity. The
-package-owned source lives directly under `config/**`, `contracts/**`,
-`methodology/**`, and `spec/**`. Only generated or adopted host projects use
-`.nimi/**`. Standalone does not add `run-*` commands, provider invocation,
-scheduler logic, or transport adapters in this cut.
+| | Cursor / Copilot / Claude Code | Lint / TDD / Code review | Nimi Coding |
+| --- | --- | --- | --- |
+| Writes code | yes | no | **no** |
+| Catches local bugs | partial | yes | n/a |
+| Catches authority drift | no | no | **yes** |
+| Catches consumer-closure failure | no | no | **yes** |
+| Vendor lock-in | yes (per tool) | no | **no — host-agnostic** |
+| Audit trail across AI sessions | chat transcript | PR comments | **typed evidence under `.nimi/**`** |
 
-## Intended Direction
+Nimi Coding sits *underneath* the AI host you already use. It is the
+machinery that lets the work AI did graduate from "looks done" to
+"closed across four dimensions, with evidence."
 
-The expected future experience is roughly:
+## Repository Map
 
-1. install `@nimiplatform/nimi-coding`
-2. run `nimicoding start`
-3. confirm or accept managed AI entrypoints
-4. let an external AI host use seeded `.nimi/**` reconstruction guidance, manifest, host-profile, installer, delegated runtime contract, installer result contract, collapsed installer summary projection lifecycle contract, installer operational evidence guidance, and the authoritative handoff JSON contract to
-   reconstruct the project canonical tree
-5. use the methodology for later high-risk work
+| Path | Purpose |
+| --- | --- |
+| `bin/nimicoding.mjs` | Executable package binary |
+| `cli/**` | CLI implementation |
+| `config/**` | Package-owned bootstrap and host profile source |
+| `contracts/**` | Package-owned machine-readable schemas and contracts |
+| `methodology/**` | Package-owned methodology source (policies) |
+| `spec/**` | Bootstrap spec seed and package scope source |
+| `adapters/**` | External host adapter profile overlays (e.g. `oh-my-codex`) |
+| `test/**` | Node test suite and fixtures |
 
-## Development Posture
+Adopted projects use `.nimi/**` for the projected layer. This
+repository itself keeps the package-owned source directly under
+`config/**`, `contracts/**`, `methodology/**`, and `spec/**`.
 
-This repository is the standalone boundary package. Deferred runtime surfaces
-such as packet-bound execution, provider-backed execution, scheduler,
-notification, and automation remain outside the packaged scope.
+## Development
+
+```bash
+pnpm install
+pnpm test           # runs the node:test suite (327 tests at 0.2.0)
+pnpm check:pack     # npm pack --dry-run
+pnpm check:ci       # test + pack + CLI help/version smoke
+```
+
+Local CLI smoke:
+
+```bash
+node ./bin/nimicoding.mjs --version
+node ./bin/nimicoding.mjs --help
+```
+
+Before opening a pull request, read [CONTRIBUTING.md](CONTRIBUTING.md).
+The short version: keep changes scoped, preserve the host-agnostic
+boundary, do not add runtime ownership unless the methodology
+contract is explicitly redesigned, and run the relevant tests before
+claiming the work is done.
+
+## Publishing
+
+Releases are tag-driven through GitHub Actions. A `vX.Y.Z` tag
+publishes the matching `package.json` version after tests, dry-run
+packing, and CLI smoke checks pass. The workflow also supports a
+manual dry-run release gate.
+
+The package publishes with npm provenance enabled.
+
+## Security
+
+Do not disclose vulnerabilities in public GitHub issues. Use a
+private channel:
+
+- GitHub private security advisory for
+  [`nimiplatform/nimi-coding`](https://github.com/nimiplatform/nimi-coding/security/advisories/new)
+- `security@nimi.ai`
+
+See [SECURITY.md](SECURITY.md) for the supported reporting path.
+
+## Documentation
+
+Full reader documentation lives at <https://docs.nimi.ai/nimicoding>,
+including:
+
+- [The Paradigm](https://docs.nimi.ai/nimicoding/the-paradigm)
+- [Four Closures](https://docs.nimi.ai/nimicoding/four-closures)
+- [False Closure Typology](https://docs.nimi.ai/nimicoding/false-closure-typology)
+- [Forbidden Shortcuts](https://docs.nimi.ai/nimicoding/forbidden-shortcuts)
+- [Role Separation](https://docs.nimi.ai/nimicoding/role-separation)
+- [Topic Lifecycle](https://docs.nimi.ai/nimicoding/topic-lifecycle)
+- [The Package](https://docs.nimi.ai/nimicoding/the-package)
+- [CLI Surface](https://docs.nimi.ai/nimicoding/cli)
+- [Installation](https://docs.nimi.ai/nimicoding/installation)
+- [Adoption Path](https://docs.nimi.ai/nimicoding/adoption-path)
+- [Comparison](https://docs.nimi.ai/nimicoding/comparison)
+- [Walkthrough](https://docs.nimi.ai/nimicoding/walkthrough)
+
+## License
+
+MIT. See [LICENSE](LICENSE).

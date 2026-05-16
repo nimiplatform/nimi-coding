@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a new capability or improvement
+labels:
+  - feature
+  - needs-triage
+body:
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: cli / contracts / methodology / adapters / docs / ci
+      placeholder: methodology
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or maintainer problem are you solving?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe expected behavior and contract shape.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Boundary impact
+      description: Does this add runtime, provider, scheduler, notification, or self-hosting ownership?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What alternatives did you consider?

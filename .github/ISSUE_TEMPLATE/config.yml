@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/nimiplatform/nimi-coding/security/advisories/new
+    about: Report security vulnerabilities privately.
+  - name: Nimi Coding documentation
+    url: https://docs.nimi.ai/nimicoding
+    about: Read the Nimi Coding methodology and CLI docs.

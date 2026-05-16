@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a reproducible defect
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: cli / contracts / methodology / adapters / docs / ci
+      placeholder: cli
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide minimal steps to reproduce.
+      placeholder: |
+        1. Run ...
+        2. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, package manager, nimicoding version.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Paste relevant output after removing secrets.
