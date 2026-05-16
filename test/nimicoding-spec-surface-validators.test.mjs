@@ -140,6 +140,47 @@ test("validate-table-family accepts an admitted product authority state machine 
   });
 });
 
+test("validate-table-family accepts an admitted release gate registry table", async () => {
+  await withTempProject(async (projectRoot) => {
+    await seedValidRuntimeTableProject(projectRoot);
+    await writeProjectFile(
+      projectRoot,
+      ".nimi/spec/platform/kernel/tables/release-gate-registry.yaml",
+      YAML.stringify({
+        table_family: "gate_registry",
+        owner: "platform",
+        registry_id: "platform_release_gate_registry",
+        schema_version: "release-gate-registry/v1",
+        registry_version: "1.0.0",
+        profile_id: "nimi",
+        tiers: [{ id: "fast", semantic: "dev_laptop_fast" }],
+        targets: ["any"],
+        reason_codes: [{ id: "COMMAND_NONZERO", semantic: "command_failed" }],
+        gates: [{
+          id: "gate.platform.smoke",
+          command: "true",
+          runner: "shell",
+          tiers: ["fast"],
+          targets: ["any"],
+          evidence: { shape: "command_exit" },
+        }],
+      }),
+    );
+
+    const result = await runCliSubprocess(["validate-table-family", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
+    assert.equal(result.exitCode, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.validator, "validate-table-family");
+    assert.equal(payload.ok, true);
+
+    const classification = await runCliSubprocess(["classify-spec-tree", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
+    assert.equal(classification.exitCode, 0);
+    const classified = JSON.parse(classification.stdout);
+    const entry = classified.inventory.inventory.find((item) => item.source_path === ".nimi/spec/platform/kernel/tables/release-gate-registry.yaml");
+    assert.equal(entry.current_inferred_class, "product_authority_table");
+  });
+});
+
 test("classify-spec-tree treats support_registry table family as support registry", async () => {
   await withTempProject(async (projectRoot) => {
     await seedValidRuntimeTableProject(projectRoot);
@@ -524,7 +565,7 @@ test("validate-projection-edges accepts a minimal package admission anchor", asy
       ".nimi/spec/_meta/nimi-coding-admission-anchor.yaml",
       YAML.stringify({
         package_id: "@nimiplatform/nimi-coding",
-        package_version: "0.2.0",
+        package_version: "0.2.1",
         package_truth_root: "package://@nimiplatform/nimi-coding/spec",
         projection_edges: ["nimi_coding_package_to_host_anchor"],
         must_not_override: [".nimi/spec/runtime/**"],

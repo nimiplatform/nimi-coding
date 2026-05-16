@@ -314,7 +314,7 @@ repository itself keeps the package-owned source directly under
 
 ```bash
 pnpm install
-pnpm test           # runs the node:test suite (327 tests at 0.2.0)
+pnpm test           # runs the node:test suite (329 tests at 0.2.1)
 pnpm check:pack     # npm pack --dry-run
 pnpm check:ci       # test + pack + CLI help/version smoke
 ```
