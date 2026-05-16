@@ -1,0 +1,135 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semver version already present in package.json, for example 0.2.0 or v0.2.0
+        required: true
+        type: string
+      publish:
+        description: Publish to npm. false runs the full dry-run release gate only.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      version_plain: ${{ steps.resolve.outputs.version_plain }}
+      publish: ${{ steps.resolve.outputs.publish }}
+    steps:
+      - name: Resolve release version
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+
+          semver_regex='^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            version="${REF_NAME}"
+            publish="true"
+          else
+            version="${INPUT_VERSION}"
+            if [[ "${version}" != v* ]]; then
+              version="v${version}"
+            fi
+            publish="${INPUT_PUBLISH}"
+          fi
+
+          if ! [[ "${version}" =~ ${semver_regex} ]]; then
+            echo "invalid semver version: ${version}" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=${version}"
+            echo "version_plain=${version#v}"
+            echo "publish=${publish}"
+          } >> "${GITHUB_OUTPUT}"
+
+  release-npm:
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.resolve.outputs.version_plain }}
+      PUBLISH: ${{ needs.resolve.outputs.publish }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@d15e628ca66d93ee5f352c71671a7bc6a97af5c9 # v6.0.8
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release version
+        run: |
+          set -euo pipefail
+          actual="$(node -p "require('./package.json').version")"
+          if [[ "${actual}" != "${RELEASE_VERSION}" ]]; then
+            echo "package.json version ${actual} does not match release ${RELEASE_VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: pnpm test
+
+      - name: Pack dry run
+        run: pnpm check:pack
+
+      - name: CLI smoke
+        run: |
+          set -euo pipefail
+          test "$(node ./bin/nimicoding.mjs --version)" = "${RELEASE_VERSION}"
+          node ./bin/nimicoding.mjs --help >/tmp/nimicoding-help.txt
+          test -s /tmp/nimicoding-help.txt
+
+      - name: Refuse duplicate npm version
+        if: env.PUBLISH == 'true'
+        run: |
+          set -euo pipefail
+          if npm view "@nimiplatform/nimi-coding@${RELEASE_VERSION}" version >/dev/null 2>&1; then
+            echo "@nimiplatform/nimi-coding@${RELEASE_VERSION} already exists on npm" >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        if: env.PUBLISH == 'true'
+        run: npm publish --access public
+
+      - name: Dry-run complete
+        if: env.PUBLISH != 'true'
+        run: echo "release dry-run completed for @nimiplatform/nimi-coding@${RELEASE_VERSION}"
