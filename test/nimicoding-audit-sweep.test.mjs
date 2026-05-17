@@ -548,6 +548,32 @@ test("audit-sweep plan creates deterministic local chunk artifacts", async () =>
   });
 });
 
+test("audit-sweep plan excludes root-level archive authority by default", async () => {
+  await withTempProject(async (projectRoot) => {
+    await mkdir(path.join(projectRoot, "_archive"), { recursive: true });
+    await mkdir(path.join(projectRoot, "src"), { recursive: true });
+    await writeFile(path.join(projectRoot, "_archive", "old.ts"), "export const old = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "src", "live.ts"), "export const live = true;\n", "utf8");
+
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      ".",
+      "--sweep-id",
+      "audit-sweep-test-root-archive-exclude",
+      "--json",
+    ]);
+
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const payload = JSON.parse(planResult.stdout);
+    assert.equal(payload.includedFiles, 1);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-root-archive-exclude.yaml"), "utf8"));
+    assert.deepEqual(plan.inventory.map((entry) => entry.file_ref), ["src/live.ts"]);
+  });
+});
+
 test("audit-sweep plan supports explicit per-run ignore policy without claiming ignored chunks as audited", async () => {
   await withTempProject(async (projectRoot) => {
     assert.equal((await captureRunCli(["start"])).exitCode, 0);
@@ -841,7 +867,9 @@ test("audit-sweep plan uses spec authority chunks for whole-project sweeps", asy
     assert.ok(runtimeChunk);
     assert.ok(runtimeChunk.authority_refs.includes(".nimi/spec/runtime/kernel/runtime-audit-surface.md"));
     assert.ok(runtimeChunk.evidence_roots.includes("runtime"));
-    assert.ok(runtimeChunk.evidence_roots.includes("config"));
+    assert.ok(runtimeChunk.evidence_roots.includes("nimi-runtime"));
+    assert.ok(!runtimeChunk.evidence_roots.includes("config"));
+    assert.ok(!runtimeChunk.evidence_roots.includes("scripts"));
     assert.equal(runtimeChunk.coverage_contract.evidence_files_must_cover_inventory, true);
     assert.ok(runtimeChunk.evidence_inventory.includes("runtime/internal/service.go"));
     assert.ok(runtimeChunk.evidence_inventory.includes("runtime/internal/service_test.go"));
@@ -857,7 +885,7 @@ test("audit-sweep plan uses spec authority chunks for whole-project sweeps", asy
     assert.ok(runtimeTablesChunk.evidence_inventory.includes("runtime/internal/service_test.go"));
     const runtimeDomainChunk = plan.chunks.find((chunk) => chunk.owner_domain === "runtime" && chunk.spec_surface === "domain-guides");
     assert.ok(runtimeDomainChunk);
-    assert.ok(runtimeDomainChunk.evidence_inventory.includes("runtime/README.md"));
+    assert.ok(!runtimeDomainChunk.evidence_inventory.includes("runtime/README.md"));
     assert.ok(runtimeDomainChunk.evidence_inventory.includes("runtime/internal/service.go"));
     assert.ok(runtimeDomainChunk.evidence_inventory.includes("runtime/internal/service_test.go"));
     const serviceEvidenceChunk = runtimeChunk;
@@ -1066,6 +1094,85 @@ test("audit-sweep plan uses spec authority chunks for whole-project sweeps", asy
       && check.ok === false
       && check.reason === "spec-authority evidence declares authority_refs"
     )));
+  });
+});
+
+test("audit-sweep plan derives exact implementation refs declared by spec authority", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "backend", "kernel", "tables"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "backend", "kernel", "tables", "backend-rule-catalog.yaml"),
+      YAML.stringify({
+        version: 1,
+        rules: [
+          {
+            rule_id: "B-ARCH-001",
+            evidence: [
+              "nimi-backend/apps/api/src/main.ts",
+              "nimi-backend/prisma/schema.prisma",
+              "scripts/check-backend-import-boundary.ts",
+              "backend/kernel/index.md",
+              "tables/backend-rule-catalog.yaml",
+              ".nimi/contracts/context-only.schema.yaml",
+              ".openclaw/legacy.md",
+            ],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    await mkdir(path.join(projectRoot, "nimi-backend", "apps", "api", "src"), { recursive: true });
+    await mkdir(path.join(projectRoot, "nimi-backend", "prisma"), { recursive: true });
+    await mkdir(path.join(projectRoot, "scripts"), { recursive: true });
+    await mkdir(path.join(projectRoot, ".openclaw"), { recursive: true });
+    await writeFile(path.join(projectRoot, "nimi-backend", "apps", "api", "src", "main.ts"), "export const main = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "nimi-backend", "prisma", "schema.prisma"), "model User { id String @id }\n", "utf8");
+    await writeFile(path.join(projectRoot, "scripts", "check-backend-import-boundary.ts"), "export const check = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, ".openclaw", "legacy.md"), "# Legacy\n", "utf8");
+
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      ".",
+      "--chunk-basis",
+      "spec",
+      "--sweep-id",
+      "audit-sweep-test-declared-evidence-refs",
+      "--json",
+    ]);
+
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-declared-evidence-refs.yaml"), "utf8"));
+    const backendChunk = plan.chunks.find((chunk) => chunk.authority_refs.includes(".nimi/spec/backend/kernel/tables/backend-rule-catalog.yaml"));
+    assert.ok(backendChunk);
+    assert.ok(backendChunk.evidence_roots.includes("nimi-backend/apps/api/src/main.ts"));
+    assert.ok(backendChunk.evidence_roots.includes("nimi-backend/prisma/schema.prisma"));
+    assert.ok(backendChunk.evidence_roots.includes("scripts/check-backend-import-boundary.ts"));
+    assert.ok(!backendChunk.evidence_roots.includes(".nimi/contracts/context-only.schema.yaml"));
+    assert.ok(!backendChunk.evidence_roots.includes(".openclaw/legacy.md"));
+    assert.ok(!backendChunk.evidence_roots.includes("backend/kernel/index.md"));
+    assert.ok(!backendChunk.evidence_roots.includes("tables/backend-rule-catalog.yaml"));
+    assert.ok(backendChunk.evidence_inventory.includes("nimi-backend/apps/api/src/main.ts"));
+    assert.ok(backendChunk.evidence_inventory.includes("nimi-backend/prisma/schema.prisma"));
+    assert.ok(backendChunk.evidence_inventory.includes("scripts/check-backend-import-boundary.ts"));
+    assert.equal(plan.unmapped_evidence_files.length, 0);
+
+    const validateResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "validate",
+      "--sweep-id",
+      "audit-sweep-test-declared-evidence-refs",
+      "--scope",
+      "plan",
+      "--json",
+    ]);
+    assert.equal(validateResult.exitCode, 0, validateResult.stdout);
   });
 });
 

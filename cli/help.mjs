@@ -53,6 +53,7 @@ export function helpText() {
     `  ${styleCommand("nimicoding sweep audit plan --root <dir> [--criteria <csv>] [--exclude <csv>] [--max-files <n>] [--sweep-id <id>] [--json]")}`,
     `  ${styleCommand("nimicoding sweep audit chunk dispatch --sweep-id <id> --chunk-id <chunk-id> --dispatched-at <iso8601> [--auditor <id>] [--json]")}`,
     `  ${styleCommand("nimicoding sweep audit chunk audit-codex --sweep-id <id> --chunk-id <chunk-id> --dispatched-at <iso8601> --verified-at <iso8601> --reviewed-at <iso8601> [--from-raw-output <ref>] [--timeout-ms <ms>] [--json]")}`,
+    `  ${styleCommand("nimicoding sweep audit chunk audit-claude --sweep-id <id> --chunk-id <chunk-id> --dispatched-at <iso8601> --verified-at <iso8601> --reviewed-at <iso8601> [--from-raw-output <ref>] [--timeout-ms <ms>] [--json]")}`,
     `  ${styleCommand("nimicoding sweep audit chunk ingest --sweep-id <id> --chunk-id <chunk-id> --from <json> --verified-at <iso8601> [--json]")}`,
     `  ${styleCommand("nimicoding sweep audit chunk review --sweep-id <id> --chunk-id <chunk-id> --verdict <pass|fail> --reviewed-at <iso8601> [--summary <text>] [--json]")}`,
     `  ${styleCommand("nimicoding sweep audit chunk skip --sweep-id <id> --chunk-id <chunk-id> --reason <text> --skipped-at <iso8601> [--json]")}`,

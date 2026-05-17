@@ -257,10 +257,12 @@ test("P0/P1 recall chunks require negative reasoning when no critical or high fi
   };
   const explainedEvidence = {
     ...mediumOnlyEvidence,
+    auditor: semanticAuditor(),
     coverage: {
       files: chunk.files,
       p0p1_negative_reasoning: "Reviewed fail-open, permission bypass, destructive action, and boundary paths; only a medium cleanup issue remains.",
       p0p1_evidence_refs: ["src/security.ts"],
+      p0p1_rule_checks: p0p1RuleChecks("src/security.ts"),
     },
   };
   const highFindingEvidence = {
@@ -302,10 +304,12 @@ test("P0/P1 recall refs must all belong to the implementation surface", () => {
   };
   const validFileEvidence = {
     chunk_id: fileChunk.chunk_id,
+    auditor: semanticAuditor(),
     coverage: {
       files: fileChunk.files,
       p0p1_negative_reasoning: "Reviewed P0/P1 defect classes against the implementation file.",
       p0p1_evidence_refs: ["src/security.ts"],
+      p0p1_rule_checks: p0p1RuleChecks("src/security.ts"),
     },
     findings: [],
   };

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -23,32 +23,37 @@ import { ingestAuditSweepChunk } from "./ingest.mjs";
 import { budgetBlockForChunk } from "./risk-budget.mjs";
 import { validateAuditSweepArtifacts } from "./validators.mjs";
 
-const CODEX_AUDITOR_DEFAULT = "codex_semantic_auditor";
-const DEFAULT_CODEX_TIMEOUT_MS = 10 * 60 * 1000;
-const CODEX_TIMEOUT_KILL_GRACE_MS = 3000;
-const CODEX_RAW_SUFFIX = ".codex-raw.json";
-const CODEX_EVIDENCE_SUFFIX = ".codex-evidence.json";
+const CLAUDE_AUDITOR_DEFAULT = "claude_semantic_auditor";
+const DEFAULT_CLAUDE_TIMEOUT_MS = 10 * 60 * 1000;
+const CLAUDE_TIMEOUT_KILL_GRACE_MS = 3000;
+const CLAUDE_RAW_SUFFIX = ".claude-raw.json";
+const CLAUDE_EVIDENCE_SUFFIX = ".claude-evidence.json";
+const CLAUDE_READONLY_ALLOWED_TOOLS = ["Read", "Grep", "Glob"];
 
-function codexOutputRef(sweepId, chunkId, suffix) {
-  return artifactRef("evidence_refs", sweepId, "codex-output", `${chunkId}${suffix}`);
+function claudeOutputRef(sweepId, chunkId, suffix) {
+  return artifactRef("evidence_refs", sweepId, "claude-output", `${chunkId}${suffix}`);
 }
 
-function codexRunToken(timestamp) {
+function claudeRunToken(timestamp) {
   return timestamp.replace(/[^0-9A-Za-z]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 function projectRefForPath(projectRoot, absolutePath) {
   return path.relative(projectRoot, absolutePath).replace(/\\/g, "/");
 }
-function codexPrompt({ packet, auditorPacketRef, rawRef, sessionRef }) {
+
+function claudePrompt({ packet, auditorPacketRef, rawRef, sessionRef }) {
   return [
-    "You are the Codex semantic auditor for a nimicoding sweep audit chunk.",
+    "OUTPUT FORMAT (HARD REQUIREMENT, READ FIRST):",
+    "Your reply MUST be exactly one JSON object. The first character of your reply MUST be `{` and the last character MUST be `}`. No prose, no apology, no markdown fences, no \"Audit complete\" summary, no commentary. Even when no findings are emitted, you MUST still emit the full JSON object (with findings: [] and the required negative_reasoning fields). A reply that is not a single JSON object will be rejected and the chunk will be marked failed.",
+    "",
+    "You are the Claude semantic auditor for a nimicoding sweep audit chunk.",
     "Run in read-only, audit-only mode. Do not edit files. Do not implement product fixes.",
     `Read the auditor packet from ${auditorPacketRef} and inspect the chunk authority refs and implementation evidence semantically.`,
     "Do not rely on this prompt as the chunk inventory; the packet file is the source for files, authority_refs, selected_implementation_refs, audit_depth, retrieval_prepass, and the raw semantic output contract.",
     "Scripts may not generate findings or no-findings; your conclusions must come from your own inspection.",
     "The packet is compact: evidence_inventory/selected_implementation_refs is the manager-selected implementation slice, not the full manager-owned inventory.",
-    "Do not ask for, reconstruct, or echo the omitted full evidence_inventory. audit-codex will mechanically fill coverage.files, coverage.authority_refs, and full coverage.evidence_files from manager-owned chunk state.",
+    "Do not ask for, reconstruct, or echo the omitted full evidence_inventory. audit-claude will mechanically fill coverage.files, coverage.authority_refs, and full coverage.evidence_files from manager-owned chunk state.",
     "You only author semantic audit content: authority_outcomes reasoning/status, inspected_implementation_refs, P0/P1 rule checks, p0p1_negative_reasoning when applicable, and findings.",
     "For each authority outcome, set authority_ref to the packet authority_ref and put inspected implementation refs in inspected_implementation_refs or implementation_evidence_refs.",
     "Every implementation ref you cite must be an exact file ref from packet.selected_implementation_refs / packet.evidence_inventory.",
@@ -59,7 +64,7 @@ function codexPrompt({ packet, auditorPacketRef, rawRef, sessionRef }) {
     "Return exactly one JSON object and nothing else. Do not wrap it in markdown.",
     "The JSON object must have exactly these top-level fields: chunk_id, auditor, coverage, findings.",
     `Set auditor.id to ${JSON.stringify(packet.auditor)}.`,
-    `Set auditor.mode to "codex_semantic_audit".`,
+    `Set auditor.mode to "claude_semantic_audit".`,
     `Set auditor.methodology_ref to "package://@nimiplatform/nimi-coding/methodology/audit-sweep-p0p1-recall.yaml".`,
     "Put P0/P1 rule checks only at coverage.p0p1_rule_checks.",
     `Set auditor.provenance.kind to "semantic_audit".`,
@@ -73,6 +78,8 @@ function codexPrompt({ packet, auditorPacketRef, rawRef, sessionRef }) {
     "Use status=\"checked\" when implementation evidence was inspected; checked rules must cite at least one in-scope implementation ref.",
     "Use status=\"not_applicable\" only when the rule truly has no implementation surface, and explain that in negative_reasoning.",
     "When the packet evidence_inventory is empty and no critical/high finding is emitted, include coverage.p0p1_implementation_not_applicable_reason with the chunk-specific reason implementation refs are not applicable.",
+    "When findings is an empty array, you MUST include coverage.p0p1_negative_reasoning (string) explaining why no critical/high finding was emitted across all priority defect classes. Omitting this field will reject the audit.",
+    "Output MUST be exactly one JSON object. Do not prepend prose. Do not wrap in ```json fences. Do not append commentary. The first character MUST be `{` and the last character MUST be `}`.",
     "Do not use priority defect class aliases such as authority_boundary_bypass, security_or_permission_bypass, destructive_action_without_gate, package_boundary_violation, or unadmitted_truth_or_evidence_source as rule check ids.",
     "Do not emit coverage.files, coverage.authority_refs, or coverage.evidence_files; those fields are manager-owned and will be populated from the packet.",
     "Do not emit authority_outcomes[].evidence_refs; it is manager-owned and will be built from authority_ref plus inspected implementation refs.",
@@ -84,6 +91,89 @@ function codexPrompt({ packet, auditorPacketRef, rawRef, sessionRef }) {
     "Do not use compliance verdicts such as violated, pass, fail, compliant, or non_compliant in authority_outcomes[].status; put violations in findings.",
     "For no-finding chunks, include chunk-specific inspected implementation refs, P0/P1 rule checks, and negative reasoning.",
   ].join("\n");
+}
+
+function stripCodeFence(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("```")) {
+    return text;
+  }
+  const fenceEnd = trimmed.indexOf("\n");
+  if (fenceEnd < 0) {
+    return text;
+  }
+  const inside = trimmed.slice(fenceEnd + 1);
+  const closing = inside.lastIndexOf("```");
+  if (closing < 0) {
+    return inside;
+  }
+  return inside.slice(0, closing);
+}
+
+function extractFirstJsonObject(rawText) {
+  const candidate = stripCodeFence(rawText);
+  const start = candidate.indexOf("{");
+  if (start < 0) {
+    return null;
+  }
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < candidate.length; index += 1) {
+    const char = candidate[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return candidate.slice(start, index + 1);
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeClaudeRawOutput(stdout) {
+  const trimmed = (stdout ?? "").trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed?.type === "result" && parsed?.structured_output && typeof parsed.structured_output === "object") {
+      return `${JSON.stringify(parsed.structured_output, null, 2)}\n`;
+    }
+    if (parsed?.type === "result" && typeof parsed.result === "string" && parsed.result.trim()) {
+      return normalizeClaudeRawOutput(parsed.result);
+    }
+    return trimmed;
+  } catch {
+    // Fall through to extraction below.
+  }
+  const extracted = extractFirstJsonObject(trimmed);
+  if (extracted) {
+    try {
+      JSON.parse(extracted);
+      return extracted;
+    } catch {
+      return extracted;
+    }
+  }
+  return trimmed;
 }
 
 function terminateProcess(child, signal) {
@@ -102,21 +192,33 @@ function terminateProcess(child, signal) {
   }
 }
 
-function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs }) {
+const CLAUDE_AUDIT_OUTPUT_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    chunk_id: { type: "string" },
+    auditor: { type: "object" },
+    coverage: { type: "object" },
+    findings: { type: "array" },
+  },
+  required: ["chunk_id", "auditor", "coverage", "findings"],
+  additionalProperties: false,
+});
+
+function runClaudeExec({ projectRoot, claudeBin, rawOutputPath, prompt, timeoutMs }) {
   return new Promise((resolve) => {
-    const boundedTimeoutMs = Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_CODEX_TIMEOUT_MS;
+    const boundedTimeoutMs = Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_CLAUDE_TIMEOUT_MS;
     let timedOut = false;
     let settled = false;
     let killTimer = null;
-    const child = spawn(codexBin, [
-      "exec",
-      "-C",
-      projectRoot,
-      "-s",
-      "read-only",
-      "--output-last-message",
-      rawOutputPath,
-      "-",
+    const child = spawn(claudeBin, [
+      "-p",
+      "--output-format", "json",
+      "--permission-mode", "bypassPermissions",
+      "--allowedTools", CLAUDE_READONLY_ALLOWED_TOOLS.join(","),
+      "--disallowedTools", "Bash,Edit,Write,NotebookEdit",
+      "--no-session-persistence",
+      "--add-dir", projectRoot,
+      "--json-schema", CLAUDE_AUDIT_OUTPUT_SCHEMA,
     ], {
       cwd: projectRoot,
       stdio: ["pipe", "pipe", "pipe"],
@@ -126,7 +228,7 @@ function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs 
     const timeoutTimer = setTimeout(() => {
       timedOut = true;
       terminateProcess(child, "SIGTERM");
-      killTimer = setTimeout(() => terminateProcess(child, "SIGKILL"), CODEX_TIMEOUT_KILL_GRACE_MS);
+      killTimer = setTimeout(() => terminateProcess(child, "SIGKILL"), CLAUDE_TIMEOUT_KILL_GRACE_MS);
     }, boundedTimeoutMs);
 
     let stdout = "";
@@ -137,7 +239,7 @@ function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs 
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
-    child.on("error", (error) => {
+    child.on("error", async (error) => {
       if (settled) {
         return;
       }
@@ -148,7 +250,7 @@ function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs 
       }
       resolve({ ok: false, exitCode: 1, timedOut, timeoutMs: boundedTimeoutMs, stdout, stderr: `${stderr}${error.message}` });
     });
-    child.on("close", (exitCode, signal) => {
+    child.on("close", async (exitCode, signal) => {
       if (settled) {
         return;
       }
@@ -157,14 +259,19 @@ function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs 
       if (killTimer) {
         clearTimeout(killTimer);
       }
+      try {
+        await writeFile(rawOutputPath, normalizeClaudeRawOutput(stdout));
+      } catch {
+        // best effort; downstream extraction will report missing file.
+      }
       resolve({ ok: exitCode === 0 && !timedOut, exitCode, signal, timedOut, timeoutMs: boundedTimeoutMs, stdout, stderr });
     });
     child.stdin.end(prompt);
   });
 }
 
-async function prepareCodexAuditPacket(projectRoot, options) {
-  return withAuditSweepMutationLock(projectRoot, options.sweepId, "chunk codex audit prepare", async () => {
+async function prepareClaudeAuditPacket(projectRoot, options) {
+  return withAuditSweepMutationLock(projectRoot, options.sweepId, "chunk claude audit prepare", async () => {
     const planResult = await loadPlan(projectRoot, options.sweepId);
     if (!planResult.ok) {
       return inputError(planResult.error);
@@ -174,7 +281,7 @@ async function prepareCodexAuditPacket(projectRoot, options) {
       return inputError(chunkResult.error);
     }
     if (chunkResult.chunk.state === "skipped") {
-      return inputError("nimicoding sweep audit refused: skipped chunks cannot be audited through Codex.\n");
+      return inputError("nimicoding sweep audit refused: skipped chunks cannot be audited through Claude.\n");
     }
     const budgetBlock = budgetBlockForChunk(planResult.plan, chunkResult.chunk);
     if (budgetBlock && chunkResult.chunk.state !== "frozen") {
@@ -182,7 +289,7 @@ async function prepareCodexAuditPacket(projectRoot, options) {
     }
 
     const dispatch = {
-      auditor: options.auditor ?? CODEX_AUDITOR_DEFAULT,
+      auditor: options.auditor ?? CLAUDE_AUDITOR_DEFAULT,
       criteria: chunkResult.chunk.criteria,
       files: chunkResult.chunk.files,
       authority_refs: chunkResult.chunk.authority_refs ?? chunkResult.chunk.files,
@@ -192,10 +299,10 @@ async function prepareCodexAuditPacket(projectRoot, options) {
       evidence_inventory: chunkResult.chunk.evidence_inventory ?? [],
       evidence_inventory_status: chunkResult.chunk.evidence_inventory_status ?? null,
       evidence_inventory_empty_reason: chunkResult.chunk.evidence_inventory_empty_reason ?? null,
-      execution_owner: "nimicoding_codex_auditor_path",
+      execution_owner: "nimicoding_claude_auditor_path",
     };
     const packet = buildAuditorPacket(options.sweepId, chunkResult.chunk, dispatch.auditor, options.dispatchedAt, planResult.plan, { projectRoot });
-    packet.execution_owner = "nimicoding_codex_auditor_path";
+    packet.execution_owner = "nimicoding_claude_auditor_path";
     packet.raw_output_contract = {
       raw_output_is_transcript_ref: true,
       raw_output_must_be_exact_json: true,
@@ -238,7 +345,7 @@ async function prepareCodexAuditPacket(projectRoot, options) {
       updated_at: options.dispatchedAt,
     });
     const runLedgerRef = await appendRunEvent(projectRoot, options.sweepId, {
-      event_type: "chunk_codex_audit_prepared",
+      event_type: "chunk_claude_audit_prepared",
       chunk_id: options.chunkId,
       chunk_ref: chunkRef(options.sweepId, options.chunkId),
       packet_ref: auditorPacketRef,
@@ -255,8 +362,8 @@ async function prepareCodexAuditPacket(projectRoot, options) {
   });
 }
 
-async function markCodexAuditFailed(projectRoot, options) {
-  return withAuditSweepMutationLock(projectRoot, options.sweepId, "chunk codex audit fail", async () => {
+async function markClaudeAuditFailed(projectRoot, options) {
+  return withAuditSweepMutationLock(projectRoot, options.sweepId, "chunk claude audit fail", async () => {
     const planResult = await loadPlan(projectRoot, options.sweepId);
     if (!planResult.ok) {
       return inputError(planResult.error);
@@ -309,7 +416,7 @@ async function markCodexAuditFailed(projectRoot, options) {
   });
 }
 
-export async function runCodexAuditSweepChunk(projectRoot, options) {
+export async function runClaudeAuditSweepChunk(projectRoot, options) {
   const sweepId = safeSweepId(options.sweepId);
   if (!sweepId || typeof options.chunkId !== "string") {
     return inputError("nimicoding sweep audit refused: --sweep-id and --chunk-id are required.\n");
@@ -327,7 +434,7 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     return reviewedAtError;
   }
 
-  const prepare = await prepareCodexAuditPacket(projectRoot, {
+  const prepare = await prepareClaudeAuditPacket(projectRoot, {
     ...options,
     sweepId,
   });
@@ -335,15 +442,15 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     return prepare;
   }
 
-  const outputSuffix = `.${codexRunToken(options.dispatchedAt)}`;
-  let rawRef = codexOutputRef(sweepId, options.chunkId, `${outputSuffix}${CODEX_RAW_SUFFIX}`);
-  const evidenceCandidateRef = codexOutputRef(sweepId, options.chunkId, `${outputSuffix}${CODEX_EVIDENCE_SUFFIX}`);
+  const outputSuffix = `.${claudeRunToken(options.dispatchedAt)}`;
+  let rawRef = claudeOutputRef(sweepId, options.chunkId, `${outputSuffix}${CLAUDE_RAW_SUFFIX}`);
+  const evidenceCandidateRef = claudeOutputRef(sweepId, options.chunkId, `${outputSuffix}${CLAUDE_EVIDENCE_SUFFIX}`);
   let rawOutputPath = artifactPath(projectRoot, rawRef);
-  let sessionRef = `codex-exec:${sweepId}:${options.chunkId}:${options.dispatchedAt}`;
+  let sessionRef = `claude-exec:${sweepId}:${options.chunkId}:${options.dispatchedAt}`;
   if (options.fromRawOutput) {
     const replaySource = resolveInsideProject(projectRoot, options.fromRawOutput, "--from-raw-output");
     if (!replaySource.ok) {
-      await markCodexAuditFailed(projectRoot, {
+      await markClaudeAuditFailed(projectRoot, {
         sweepId,
         chunkId: options.chunkId,
         failedAt: options.verifiedAt,
@@ -354,16 +461,31 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
       });
       return inputError(replaySource.error);
     }
-    rawOutputPath = replaySource.absolutePath;
-    rawRef = projectRefForPath(projectRoot, rawOutputPath);
-    sessionRef = `codex-replay:${sweepId}:${options.chunkId}:${options.dispatchedAt}`;
+    try {
+      const replayText = await readFile(replaySource.absolutePath, "utf8");
+      await mkdir(path.dirname(rawOutputPath), { recursive: true });
+      await writeFile(rawOutputPath, normalizeClaudeRawOutput(replayText));
+      sessionRef = `claude-replay:${sweepId}:${options.chunkId}:${options.dispatchedAt}:${projectRefForPath(projectRoot, replaySource.absolutePath)}`;
+    } catch (error) {
+      const reason = `Claude replay raw output could not be read or normalized: ${error.message}`;
+      await markClaudeAuditFailed(projectRoot, {
+        sweepId,
+        chunkId: options.chunkId,
+        failedAt: options.verifiedAt,
+        packetRef: prepare.packetRef,
+        transcriptRef: rawRef,
+        phase: "raw_output_replay",
+        reason,
+      });
+      return inputError(`nimicoding sweep audit refused: ${reason}\n`);
+    }
   } else {
     await mkdir(path.dirname(rawOutputPath), { recursive: true });
-    const runResult = await runCodexExec({
+    const runResult = await runClaudeExec({
       projectRoot,
-      codexBin: options.codexBin ?? "codex",
+      claudeBin: options.claudeBin ?? "claude",
       rawOutputPath,
-      prompt: codexPrompt({
+      prompt: claudePrompt({
         packet: prepare.packet,
         auditorPacketRef: prepare.packetRef,
         rawRef,
@@ -373,19 +495,19 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     });
     if (!runResult.ok) {
       const failureReason = runResult.timedOut
-        ? `Codex auditor execution timed out after ${runResult.timeoutMs}ms.`
-        : `Codex auditor execution failed with exit code ${runResult.exitCode ?? "unknown"}.`;
-      await markCodexAuditFailed(projectRoot, {
+        ? `Claude auditor execution timed out after ${runResult.timeoutMs}ms.`
+        : `Claude auditor execution failed with exit code ${runResult.exitCode ?? "unknown"}.`;
+      await markClaudeAuditFailed(projectRoot, {
         sweepId,
         chunkId: options.chunkId,
         failedAt: options.verifiedAt,
         packetRef: prepare.packetRef,
         transcriptRef: rawRef,
-        phase: "codex_execution",
+        phase: "claude_execution",
         reason: failureReason,
       });
       await appendRunEvent(projectRoot, sweepId, {
-        event_type: "chunk_codex_audit_failed",
+        event_type: "chunk_claude_audit_failed",
         chunk_id: options.chunkId,
         chunk_ref: prepare.chunkRef,
         packet_ref: prepare.packetRef,
@@ -406,31 +528,32 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     packetRef: prepare.packetRef,
     sessionRef,
     transcriptRef: rawRef,
-    auditorId: options.auditor ?? CODEX_AUDITOR_DEFAULT,
+    auditorId: options.auditor ?? CLAUDE_AUDITOR_DEFAULT,
+    auditorMode: "claude_semantic_audit",
   });
   if (!extracted.ok) {
-    await markCodexAuditFailed(projectRoot, {
+    await markClaudeAuditFailed(projectRoot, {
       sweepId,
       chunkId: options.chunkId,
       failedAt: options.verifiedAt,
       packetRef: prepare.packetRef,
       transcriptRef: rawRef,
       phase: "auditor_output_validation",
-      reason: `Codex auditor output rejected: ${extracted.error}.`,
+      reason: `Claude auditor output rejected: ${extracted.error}.`,
     });
     await appendRunEvent(projectRoot, sweepId, {
-      event_type: "chunk_codex_auditor_output_rejected",
+      event_type: "chunk_claude_auditor_output_rejected",
       chunk_id: options.chunkId,
       chunk_ref: prepare.chunkRef,
       packet_ref: prepare.packetRef,
       transcript_ref: rawRef,
       reason: extracted.error,
     });
-    return inputError(`nimicoding sweep audit refused: Codex auditor output rejected for ${options.chunkId}: ${extracted.error}.\n`);
+    return inputError(`nimicoding sweep audit refused: Claude auditor output rejected for ${options.chunkId}: ${extracted.error}.\n`);
   }
 
   await appendRunEvent(projectRoot, sweepId, {
-    event_type: "chunk_codex_auditor_output_accepted",
+    event_type: "chunk_claude_auditor_output_accepted",
     chunk_id: options.chunkId,
     chunk_ref: prepare.chunkRef,
     packet_ref: prepare.packetRef,
@@ -446,16 +569,16 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     verifiedAt: options.verifiedAt,
   });
   if (!ingest.ok) {
-    await markCodexAuditFailed(projectRoot, {
+    await markClaudeAuditFailed(projectRoot, {
       sweepId,
       chunkId: options.chunkId,
       failedAt: options.verifiedAt,
       packetRef: prepare.packetRef,
       transcriptRef: rawRef,
       phase: "chunk_ingest",
-      reason: `Codex auditor evidence ingest rejected: ${ingest.error ?? "unknown ingest failure"}.`,
+      reason: `Claude auditor evidence ingest rejected: ${ingest.error ?? "unknown ingest failure"}.`,
     });
-    return inputError(`nimicoding sweep audit refused: Codex auditor evidence ingest rejected for ${options.chunkId}: ${ingest.error ?? "unknown ingest failure"}.\n`);
+    return inputError(`nimicoding sweep audit refused: Claude auditor evidence ingest rejected for ${options.chunkId}: ${ingest.error ?? "unknown ingest failure"}.\n`);
   }
 
   const review = await reviewAuditSweepChunk(projectRoot, {
@@ -463,37 +586,45 @@ export async function runCodexAuditSweepChunk(projectRoot, options) {
     chunkId: options.chunkId,
     verdict: "pass",
     reviewedAt: options.reviewedAt,
-    reviewer: options.reviewer ?? "nimicoding_codex_auditor_path",
-    summary: options.summary ?? `Codex semantic audit accepted from ${rawRef}.`,
+    reviewer: options.reviewer ?? "nimicoding_claude_auditor_path",
+    summary: options.summary ?? `Claude semantic audit accepted from ${rawRef}.`,
   });
   if (!review.ok) {
-    await markCodexAuditFailed(projectRoot, {
+    await markClaudeAuditFailed(projectRoot, {
       sweepId,
       chunkId: options.chunkId,
       failedAt: options.reviewedAt,
       packetRef: prepare.packetRef,
       transcriptRef: rawRef,
       phase: "chunk_review",
-      reason: `Codex auditor evidence review rejected: ${review.error ?? "unknown review failure"}.`,
+      reason: `Claude auditor evidence review rejected: ${review.error ?? "unknown review failure"}.`,
     });
-    return inputError(`nimicoding sweep audit refused: Codex auditor evidence review rejected for ${options.chunkId}: ${review.error ?? "unknown review failure"}.\n`);
+    return inputError(`nimicoding sweep audit refused: Claude auditor evidence review rejected for ${options.chunkId}: ${review.error ?? "unknown review failure"}.\n`);
   }
 
   const validation = await validateAuditSweepArtifacts(projectRoot, {
     sweepId,
     scope: "chunks",
   });
-  if (!validation.ok) {
-    await markCodexAuditFailed(projectRoot, {
+  const chunkScopedFailures = (validation.checks ?? []).filter((entry) => {
+    if (entry.ok) {
+      return false;
+    }
+    const id = entry.id ?? "";
+    return id.includes(options.chunkId);
+  });
+  if (chunkScopedFailures.length > 0) {
+    const failureSummary = chunkScopedFailures.map((entry) => `${entry.id}: ${entry.reason}`).join("; ");
+    await markClaudeAuditFailed(projectRoot, {
       sweepId,
       chunkId: options.chunkId,
       failedAt: options.reviewedAt,
       packetRef: prepare.packetRef,
       transcriptRef: rawRef,
       phase: "post_chunk_validation",
-      reason: "Post-Codex chunk validation failed.",
+      reason: `Post-Claude chunk validation failed: ${failureSummary}`,
     });
-    return inputError(`nimicoding sweep audit refused: post-Codex chunk validation failed for ${options.chunkId}.\n`);
+    return inputError(`nimicoding sweep audit refused: post-Claude chunk validation failed for ${options.chunkId}: ${failureSummary}.\n`);
   }
 
   return {

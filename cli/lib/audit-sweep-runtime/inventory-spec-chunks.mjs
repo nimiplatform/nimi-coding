@@ -7,24 +7,110 @@ function evidenceRootsForSpecOwner(ownerDomain, targetRootRef) {
     return [targetRootRef];
   }
   const owner = String(ownerDomain ?? "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  const repoWideEvidenceRoots = [".", ".github", "config", "scripts", "src", "lib", "packages", "apps", "tools", "services"];
   if (!owner || owner === "spec-meta" || owner === "spec-root") {
-    return repoWideEvidenceRoots;
+    return [];
   }
   if (owner === "project") {
-    return ["src", "lib", "packages", "apps", "tools", "services", "scripts", "config"];
+    return ["src", "lib", "packages", "apps", "tools", "services"];
   }
   return [
     owner,
+    `nimi-${owner}`,
     `src/${owner}`,
     `lib/${owner}`,
     `packages/${owner}`,
+    `packages/nimi-${owner}`,
     `apps/${owner}`,
     `tools/${owner}`,
     `services/${owner}`,
-    "scripts",
-    "config",
   ];
+}
+
+const DECLARED_EVIDENCE_REF_PATTERN = /(?:^|[\s"'`([{:;,])((?:\.\/)?(?:[A-Za-z0-9_.@+-]+\/)+[A-Za-z0-9_@+.-]+\.(?:cjs|css|go|js|jsx|json|md|mjs|prisma|proto|py|rs|ts|tsx|yaml|yml))(?:[#:)\\\],;."'`]|\s|$)/gu;
+
+function looksLikeSpecAuthorityRelativeRef(normalized) {
+  const extension = path.posix.extname(normalized);
+  if (![".md", ".yaml", ".yml"].includes(extension)) {
+    return false;
+  }
+  const parts = normalized.split("/");
+  const firstSegment = parts[0];
+  if (["tables", "generated", "kernel"].includes(firstSegment)) {
+    return true;
+  }
+  if (parts[1] === "kernel") {
+    return true;
+  }
+  const specDomainLike = /^(backend|dashboard|realm|runtime|v[0-9]+|vision|workers)$/u.test(firstSegment);
+  return specDomainLike && parts.length <= 2;
+}
+
+function normalizeDeclaredEvidenceRef(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/[),.;:]+$/u, "");
+  if (!normalized || normalized.startsWith("../") || normalized.includes("/../") || normalized.startsWith("http:") || normalized.startsWith("https:")) {
+    return null;
+  }
+  if (!normalized.includes("/")) {
+    return null;
+  }
+  const firstSegment = normalized.split("/")[0];
+  if (looksLikeSpecAuthorityRelativeRef(normalized)) {
+    return null;
+  }
+  if (
+    normalized.startsWith(".nimi/spec/")
+    || normalized.startsWith(".nimi/contracts/")
+    || normalized.startsWith(".nimi/methodology/")
+    || normalized.startsWith(".nimi/local/")
+    || normalized.startsWith(".agents/")
+    || normalized.startsWith(".claude/")
+    || normalized.startsWith(".openclaw/")
+    || normalized.includes("/.nimi/spec/")
+    || normalized.includes("/.nimi/contracts/")
+    || normalized.includes("/.nimi/methodology/")
+  ) {
+    return null;
+  }
+  const basename = path.posix.basename(normalized).toLowerCase();
+  if (basename === "agents.md" || basename === "readme.md") {
+    return null;
+  }
+  return normalized;
+}
+
+function candidateEvidenceRefsForDeclaredRef(declaredRef, evidenceRoots) {
+  const normalized = String(declaredRef ?? "").replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+  if (!normalized) {
+    return [];
+  }
+  const candidates = [normalized];
+  for (const rootRef of evidenceRoots ?? []) {
+    const root = String(rootRef ?? "").replace(/\\/g, "/").replace(/\/$/, "");
+    if (!root || root === "." || root.startsWith(".nimi/spec") || path.posix.extname(root)) {
+      continue;
+    }
+    if (normalized === root || normalized.startsWith(`${root}/`)) {
+      candidates.push(normalized);
+    } else {
+      candidates.push(`${root}/${normalized}`);
+    }
+  }
+  return [...new Set(candidates)].sort();
+}
+
+function extractDeclaredEvidenceRefs(text) {
+  const refs = [];
+  for (const match of String(text ?? "").matchAll(DECLARED_EVIDENCE_REF_PATTERN)) {
+    const normalized = normalizeDeclaredEvidenceRef(match[1]);
+    if (normalized) {
+      refs.push(normalized);
+    }
+  }
+  return [...new Set(refs)].sort();
 }
 
 function slugPart(value) {
@@ -132,22 +218,34 @@ export function buildSpecChunks(includedInventory, options) {
     const rootAdmissions = (options.auditEvidenceRootAdmissions ?? [])
       .filter((admission) => admission.owner_domain === surface.ownerDomain && admission.authority_refs.includes(entry.file_ref));
     const admittedEvidenceRoots = rootAdmissions.flatMap((admission) => admission.evidence_roots);
+    const authorityText = authorityRefs
+      .map((authorityRef) => options.authorityTextByRef?.get(authorityRef) ?? "")
+      .join("\n");
+    const declaredEvidenceRefs = packageAdmission || appAdmission
+      ? []
+      : extractDeclaredEvidenceRefs(authorityText);
     const evidenceRoots = packageAdmission
       ? packageAdmission.evidence_roots
       : appAdmission
       ? appAdmission.evidence_roots
       : [...new Set([
         ...evidenceRootsForSpecOwner(surface.ownerDomain, options.targetRootRef),
+        ...declaredEvidenceRefs,
         ...admittedEvidenceRoots,
       ])].sort();
     const moduleMapRefs = surface.surface === "domain-guides" || surface.surface === "app-domain-guides"
       ? extractModuleMapRefs(options.authorityTextByRef?.get(entry.file_ref) ?? "")
       : [];
-    const declaredEvidenceTargets = moduleMapRefs
-      .map((moduleRef) => ({
+    const declaredEvidenceTargets = [
+      ...moduleMapRefs.map((moduleRef) => ({
         source_path: moduleRef,
         candidates: candidateEvidenceRefsForModuleMapPath(moduleRef, evidenceRoots),
-      }))
+      })),
+      ...declaredEvidenceRefs.map((evidenceRef) => ({
+        source_path: evidenceRef,
+        candidates: candidateEvidenceRefsForDeclaredRef(evidenceRef, evidenceRoots),
+      })),
+    ]
       .filter((target) => target.candidates.length > 0);
     chunkIndex += 1;
     const chunkId = [

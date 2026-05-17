@@ -17,6 +17,9 @@ import {
   validateCodexAuditorEvidence,
 } from "../cli/lib/audit-sweep-runtime/codex-auditor-evidence.mjs";
 import {
+  buildAuditValidityForEvidence,
+} from "../cli/lib/audit-sweep-runtime/audit-validity.mjs";
+import {
   buildAuditorPacket,
 } from "../cli/lib/audit-sweep-runtime/chunks.mjs";
 
@@ -247,6 +250,99 @@ test("Codex auditor envelope rejects synthetic no-finding evidence", () => {
 
   assert.equal(validation.ok, false);
   assert.match(validation.error, /synthetic_no_finding_evidence/);
+});
+
+test("P0/P1 validity treats AGENTS-only inventory as no implementation surface", () => {
+  const packetRef = ".nimi/local/audit/packets/test/chunk-thin-guide.auditor-packet.yaml";
+  const chunk = {
+    chunk_id: "chunk-thin-guide",
+    planning_basis: "spec_authority",
+    criteria: ["p0p1"],
+    files: [".nimi/spec/realm/world.md"],
+    authority_refs: [".nimi/spec/realm/world.md"],
+    evidence_inventory: ["scripts/AGENTS.md"],
+  };
+  const evidence = {
+    chunk_id: chunk.chunk_id,
+    auditor: semanticAuditor(packetRef),
+    coverage: {
+      files: chunk.files,
+      authority_refs: chunk.authority_refs,
+      evidence_files: chunk.evidence_inventory,
+      authority_outcomes: [{
+        authority_ref: chunk.authority_refs[0],
+        status: "audited",
+        evidence_refs: chunk.authority_refs,
+        implementation_evidence_refs: [],
+        implementation_not_applicable_reason: "The selected evidence is an AGENTS governance file, not executable implementation.",
+        negative_reasoning: "The authority was inspected as a thin guide and has no in-scope implementation surface.",
+      }],
+      p0p1_evidence_refs: [],
+      p0p1_implementation_not_applicable_reason: "The only selected evidence ref is scripts/AGENTS.md, which is governance context rather than implementation.",
+      p0p1_negative_reasoning: "No P0/P1 implementation defect can be emitted because this chunk has no in-scope implementation surface.",
+      p0p1_rule_checks: p0p1RuleChecks("").map((check) => ({
+        ...check,
+        status: "not_applicable",
+        implementation_refs: [],
+      })),
+    },
+    findings: [],
+  };
+
+  const validation = validateCodexAuditorEvidence(evidence, chunk, packetRef);
+  const auditValidity = buildAuditValidityForEvidence(chunk, evidence);
+
+  assert.equal(validation.ok, true, validation.error);
+  assert.notEqual(auditValidity.posture, "invalid");
+  assert.equal(auditValidity.blockers.length, 0);
+});
+
+test("Codex auditor extractor normalizes context-only P0/P1 refs to not-applicable", async () => {
+  await withTempProject(async (projectRoot) => {
+    const packetRef = ".nimi/local/audit/packets/test/chunk-context-only.auditor-packet.yaml";
+    const chunk = {
+      chunk_id: "chunk-context-only",
+      planning_basis: "spec_authority",
+      criteria: ["p0p1"],
+      files: [".nimi/spec/realm/README.md"],
+      authority_refs: [".nimi/spec/realm/README.md"],
+      evidence_inventory: ["scripts/AGENTS.md"],
+    };
+    const rawEvidence = {
+      chunk_id: chunk.chunk_id,
+      auditor: { id: "codex-context-only-fixture" },
+      coverage: {
+        authority_outcomes: [{
+          authority_ref: chunk.authority_refs[0],
+          status: "audited",
+          inspected_implementation_refs: chunk.evidence_inventory,
+          negative_reasoning: "The only selected evidence ref is governance context and not implementation.",
+        }],
+        p0p1_negative_reasoning: "No P0/P1 implementation defect can be emitted because the selected ref is context only.",
+        p0p1_evidence_refs: chunk.evidence_inventory,
+        p0p1_rule_checks: p0p1RuleChecks(chunk.evidence_inventory[0]),
+      },
+      findings: [],
+    };
+    const rawOutputPath = path.join(projectRoot, "codex-context-only-raw.json");
+    await writeFile(rawOutputPath, `${JSON.stringify(rawEvidence, null, 2)}\n`, "utf8");
+
+    const extracted = await extractCodexAuditorEvidenceFile(projectRoot, {
+      rawOutputPath,
+      evidenceRef: ".nimi/local/audit/evidence/test/chunk-context-only.codex-evidence.json",
+      chunk,
+      packetRef,
+      sessionRef: "codex-exec:test-context-only",
+      transcriptRef: ".nimi/local/audit/evidence/test/codex-context-only-raw.json",
+      auditorId: "codex-context-only-fixture",
+    });
+
+    assert.equal(extracted.ok, true, extracted.error);
+    assert.deepEqual(extracted.evidence.coverage.p0p1_evidence_refs, []);
+    assert.ok(extracted.evidence.coverage.p0p1_rule_checks.every((check) => check.status === "not_applicable"));
+    assert.equal(extracted.evidence.coverage.authority_outcomes[0].implementation_evidence_refs.length, 0);
+    assert.match(extracted.evidence.coverage.authority_outcomes[0].implementation_not_applicable_reason, /non-implementation context/u);
+  });
 });
 
 test("Codex auditor extractor accepts valid semantic evidence", async () => {
@@ -1010,6 +1106,209 @@ test("audit-codex command freezes valid evidence and validates chunk replay", as
     assert.equal(auditedChunk.lifecycle.failed_at, null);
     assert.equal(auditedChunk.audit_validity.posture, "trusted");
     assert.equal(auditedChunk.finding_count, 1);
+  });
+});
+
+test("audit-claude command extracts structured_output from Claude JSON result wrapper", async () => {
+  await withTempProject(async (projectRoot) => {
+    assert.equal((await captureRunCli(["start"])).exitCode, 0);
+    await mkdir(path.join(projectRoot, "src"), { recursive: true });
+    await writeFile(path.join(projectRoot, "src", "security.ts"), "export const allow = true;\n", "utf8");
+    const sweepId = "audit-sweep-test-claude-structured-output";
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      "src",
+      "--criteria",
+      "p0p1",
+      "--max-files",
+      "1",
+      "--sweep-id",
+      sweepId,
+      "--json",
+    ]);
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", `${sweepId}.yaml`), "utf8"));
+    const chunk = plan.chunks[0];
+    const packetRef = `.nimi/local/audit/packets/${sweepId}/${chunk.chunk_id}.auditor-packet.yaml`;
+    const fakeClaudePath = path.join(projectRoot, "fake-claude.mjs");
+    await writeFile(
+      fakeClaudePath,
+      [
+        "#!/usr/bin/env node",
+        "const outputFormatIndex = process.argv.indexOf('--output-format');",
+        "if (outputFormatIndex < 0 || process.argv[outputFormatIndex + 1] !== 'json') process.exit(7);",
+        "const allowedToolsIndex = process.argv.indexOf('--allowedTools');",
+        "if (allowedToolsIndex < 0 || process.argv[allowedToolsIndex + 1].includes('Bash')) process.exit(8);",
+        "const disallowedToolsIndex = process.argv.indexOf('--disallowedTools');",
+        "if (disallowedToolsIndex < 0 || !process.argv[disallowedToolsIndex + 1].includes('Bash')) process.exit(9);",
+        "process.stdout.write(JSON.stringify({",
+        "  type: 'result',",
+        "  subtype: 'success',",
+        "  result: 'Structured output submitted.',",
+        "  structured_output: JSON.parse(process.env.FAKE_CLAUDE_STRUCTURED_OUTPUT_JSON),",
+        "}) + '\\n');",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(fakeClaudePath, 0o755);
+    const previousFakeOutput = process.env.FAKE_CLAUDE_STRUCTURED_OUTPUT_JSON;
+    process.env.FAKE_CLAUDE_STRUCTURED_OUTPUT_JSON = JSON.stringify({
+      chunk_id: chunk.chunk_id,
+      auditor: semanticAuditor(packetRef),
+      coverage: {
+        authority_outcomes: [{
+          authority_ref: chunk.files[0],
+          status: "audited",
+          inspected_implementation_refs: chunk.files,
+          negative_reasoning: "The implementation file was inspected for high-impact fixture behavior.",
+        }],
+        p0p1_evidence_refs: chunk.files,
+      },
+      findings: [{
+        severity: "high",
+        category: "security",
+        actionability: "needs-decision",
+        confidence: "high",
+        impact: "Fixture high finding proves audit-claude can ingest structured Claude output.",
+        location: { file: chunk.files[0], line: 1 },
+        title: "Claude structured output finding",
+        description: "The fake Claude auditor emits structured_output inside the CLI JSON result wrapper.",
+        evidence: {
+          summary: "The implementation file was inspected by the fake Claude auditor fixture.",
+          auditor_reasoning: "This regression covers Claude CLI structured output wrapper extraction.",
+        },
+      }],
+    });
+    try {
+      const auditResult = await captureRunCli([
+        "sweep",
+        "audit",
+        "chunk",
+        "audit-claude",
+        "--sweep-id",
+        sweepId,
+        "--chunk-id",
+        chunk.chunk_id,
+        "--dispatched-at",
+        "2026-05-05T00:00:00.000Z",
+        "--verified-at",
+        "2026-05-05T00:01:00.000Z",
+        "--reviewed-at",
+        "2026-05-05T00:02:00.000Z",
+        "--claude-bin",
+        fakeClaudePath,
+        "--json",
+      ]);
+      assert.equal(auditResult.exitCode, 0, auditResult.stderr);
+      const payload = JSON.parse(auditResult.stdout);
+      const rawText = await readFile(path.join(projectRoot, payload.transcriptRef), "utf8");
+      const evidenceText = await readFile(path.join(projectRoot, payload.extractedEvidenceRef), "utf8");
+      const rawJson = JSON.parse(rawText);
+      const evidenceJson = JSON.parse(evidenceText);
+      assert.match(rawText.trim(), /^\{/u);
+      assert.equal(rawJson.type, undefined);
+      assert.equal(rawJson.structured_output, undefined);
+      assert.equal(evidenceJson.auditor.mode, "claude_semantic_audit");
+    } finally {
+      if (previousFakeOutput === undefined) {
+        delete process.env.FAKE_CLAUDE_STRUCTURED_OUTPUT_JSON;
+      } else {
+        process.env.FAKE_CLAUDE_STRUCTURED_OUTPUT_JSON = previousFakeOutput;
+      }
+    }
+  });
+});
+
+test("audit-claude command replays structured_output JSON wrapper from raw output", async () => {
+  await withTempProject(async (projectRoot) => {
+    assert.equal((await captureRunCli(["start"])).exitCode, 0);
+    await mkdir(path.join(projectRoot, "src"), { recursive: true });
+    await writeFile(path.join(projectRoot, "src", "security.ts"), "export const allow = true;\n", "utf8");
+    const sweepId = "audit-sweep-test-claude-wrapper-replay";
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      "src",
+      "--criteria",
+      "p0p1",
+      "--max-files",
+      "1",
+      "--sweep-id",
+      sweepId,
+      "--json",
+    ]);
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", `${sweepId}.yaml`), "utf8"));
+    const chunk = plan.chunks[0];
+    const replayPath = path.join(projectRoot, "claude-wrapper-raw.json");
+    await writeFile(
+      replayPath,
+      `${JSON.stringify({
+        type: "result",
+        subtype: "success",
+        result: "Structured output submitted.",
+        structured_output: {
+          chunk_id: chunk.chunk_id,
+          auditor: { id: "claude-replay-fixture" },
+          coverage: {
+            authority_outcomes: [{
+              authority_ref: chunk.files[0],
+              status: "audited",
+              inspected_implementation_refs: chunk.files,
+              negative_reasoning: "The implementation file was inspected for high-impact fixture behavior.",
+            }],
+            p0p1_evidence_refs: chunk.files,
+          },
+          findings: [{
+            severity: "high",
+            category: "security",
+            actionability: "needs-decision",
+            confidence: "high",
+            impact: "Fixture high finding proves audit-claude replay can ingest structured Claude output.",
+            location: { file: chunk.files[0], line: 1 },
+            title: "Claude replay structured output finding",
+            description: "The replay path normalizes structured_output before evidence extraction.",
+            evidence: {
+              summary: "The implementation file was inspected by the replay fixture.",
+              auditor_reasoning: "This regression covers Claude CLI structured output wrapper replay.",
+            },
+          }],
+        },
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const auditResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "chunk",
+      "audit-claude",
+      "--sweep-id",
+      sweepId,
+      "--chunk-id",
+      chunk.chunk_id,
+      "--dispatched-at",
+      "2026-05-05T00:00:00.000Z",
+      "--verified-at",
+      "2026-05-05T00:01:00.000Z",
+      "--reviewed-at",
+      "2026-05-05T00:02:00.000Z",
+      "--from-raw-output",
+      "claude-wrapper-raw.json",
+      "--json",
+    ]);
+
+    assert.equal(auditResult.exitCode, 0, auditResult.stderr);
+    const payload = JSON.parse(auditResult.stdout);
+    const rawJson = JSON.parse(await readFile(path.join(projectRoot, payload.transcriptRef), "utf8"));
+    assert.equal(rawJson.type, undefined);
+    assert.equal(rawJson.structured_output, undefined);
+    assert.equal(payload.findingCount, 1);
   });
 });
 

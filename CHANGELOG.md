@@ -4,6 +4,22 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.3
+
+- Added `nimicoding sweep audit chunk audit-claude` for Claude-backed sweep
+  chunk audits with structured JSON output, evidence ingestion, review, freeze,
+  post-chunk validation, and run-ledger events.
+- Hardened Claude auditor output handling by normalizing Claude CLI JSON result
+  wrappers, including `structured_output` and replayed raw output files.
+- Tightened audit evidence normalization so AGENTS, README, spec, contract, and
+  methodology refs are treated as context rather than implementation evidence.
+- Improved P0/P1 validity and spec-authority evidence mapping so context-only
+  chunks can be marked not applicable while declared implementation refs,
+  including `.prisma` surfaces, map to the correct owner roots.
+- Updated default audit-sweep exclusions for common tool state and archive
+  directories while keeping host-specific `nimi/**` exclusions out of the
+  package defaults.
+
 ## 0.2.2
 
 - Fixed v2 doctor lifecycle/readiness derivation so host projects using the

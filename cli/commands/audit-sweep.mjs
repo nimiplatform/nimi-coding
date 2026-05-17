@@ -10,6 +10,7 @@ import {
   ingestAuditSweepChunk,
   resolveAuditSweepFinding,
   reviewAuditSweepChunk,
+  runClaudeAuditSweepChunk,
   runCodexAuditSweepChunk,
   skipAuditSweepChunk,
   validateAuditSweepArtifacts,
@@ -150,6 +151,23 @@ function parseChunkAuditCodexOptions(args) {
   });
 }
 
+function parseChunkAuditClaudeOptions(args) {
+  return parseOptions(args, "chunk audit-claude", {
+    sweepId: { flag: "--sweep-id", required: true },
+    chunkId: { flag: "--chunk-id", required: true },
+    dispatchedAt: { flag: "--dispatched-at", required: true },
+    verifiedAt: { flag: "--verified-at", required: true },
+    reviewedAt: { flag: "--reviewed-at", required: true },
+    auditor: { flag: "--auditor" },
+    reviewer: { flag: "--reviewer" },
+    summary: { flag: "--summary" },
+    claudeBin: { flag: "--claude-bin" },
+    fromRawOutput: { flag: "--from-raw-output" },
+    timeoutMs: { flag: "--timeout-ms", type: "positive-int" },
+    json: { default: false },
+  });
+}
+
 function parseChunkReviewOptions(args) {
   return parseOptions(args, "chunk review", {
     sweepId: { flag: "--sweep-id", required: true },
@@ -238,6 +256,9 @@ function parseAuditSweepOptions(args) {
   if (command === "chunk" && subcommand === "audit-codex") {
     return { ok: true, action: "chunk-audit-codex", parsed: parseChunkAuditCodexOptions(args.slice(2)) };
   }
+  if (command === "chunk" && subcommand === "audit-claude") {
+    return { ok: true, action: "chunk-audit-claude", parsed: parseChunkAuditClaudeOptions(args.slice(2)) };
+  }
   if (command === "chunk" && subcommand === "review") {
     return { ok: true, action: "chunk-review", parsed: parseChunkReviewOptions(args.slice(2)) };
   }
@@ -269,8 +290,8 @@ function parseAuditSweepOptions(args) {
   return {
     ok: false,
     error: `${localize(
-      "nimicoding sweep audit refused: expected one of `plan`, `chunk dispatch`, `chunk audit-codex`, `chunk ingest`, `chunk review`, `chunk skip`, `ledger build`, `remediation-map build`, `remediation-map admit`, `finding resolve`, `closeout summary`, `status`, or `validate`.",
-      "nimicoding sweep audit 已拒绝：需要使用 `plan`、`chunk dispatch`、`chunk ingest`、`chunk review`、`chunk skip`、`ledger build`、`remediation-map build`、`remediation-map admit`、`finding resolve`、`closeout summary`、`status` 或 `validate`。",
+      "nimicoding sweep audit refused: expected one of `plan`, `chunk dispatch`, `chunk audit-codex`, `chunk audit-claude`, `chunk ingest`, `chunk review`, `chunk skip`, `ledger build`, `remediation-map build`, `remediation-map admit`, `finding resolve`, `closeout summary`, `status`, or `validate`.",
+      "nimicoding sweep audit 已拒绝：需要使用 `plan`、`chunk dispatch`、`chunk audit-codex`、`chunk audit-claude`、`chunk ingest`、`chunk review`、`chunk skip`、`ledger build`、`remediation-map build`、`remediation-map admit`、`finding resolve`、`closeout summary`、`status` 或 `validate`。",
     )}\n`,
   };
 }
@@ -303,6 +324,7 @@ export async function runAuditSweep(args) {
     "chunk-dispatch": dispatchAuditSweepChunk,
     "chunk-ingest": ingestAuditSweepChunk,
     "chunk-audit-codex": runCodexAuditSweepChunk,
+    "chunk-audit-claude": runClaudeAuditSweepChunk,
     "chunk-review": reviewAuditSweepChunk,
     "chunk-skip": skipAuditSweepChunk,
     "ledger-build": buildAuditSweepLedger,
@@ -328,6 +350,7 @@ export async function runAuditSweep(args) {
 
 export {
   parseAuditSweepOptions,
+  parseChunkAuditClaudeOptions,
   parseChunkAuditCodexOptions,
   parseChunkDispatchOptions,
   parseChunkIngestOptions,

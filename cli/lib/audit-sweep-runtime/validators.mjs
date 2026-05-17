@@ -43,6 +43,10 @@ const RUN_EVENT_TYPES = new Set([
   "chunk_codex_audit_failed",
   "chunk_codex_auditor_output_rejected",
   "chunk_codex_auditor_output_accepted",
+  "chunk_claude_audit_prepared",
+  "chunk_claude_audit_failed",
+  "chunk_claude_auditor_output_rejected",
+  "chunk_claude_auditor_output_accepted",
   "ledger_snapshot_created",
   "remediation_map_created",
   "remediation_map_admitted",
@@ -610,7 +614,8 @@ function validateRunLedgerReplay(events, plan, chunks, findings, latestLedger, c
   check(checks, "run_replay_plan_created", eventsByType.get("plan_created")?.some((event) => event.plan_ref === planRefFromPlan(plan)) === true, "run ledger records plan_created for this plan");
   for (const chunk of chunks) {
     const dispatched = eventsByType.get("chunk_dispatched")?.some((event) => event.chunk_id === chunk.chunk_id) === true
-      || eventsByType.get("chunk_codex_audit_prepared")?.some((event) => event.chunk_id === chunk.chunk_id) === true;
+      || eventsByType.get("chunk_codex_audit_prepared")?.some((event) => event.chunk_id === chunk.chunk_id) === true
+      || eventsByType.get("chunk_claude_audit_prepared")?.some((event) => event.chunk_id === chunk.chunk_id) === true;
     const ingested = eventsByType.get("chunk_ingested")?.some((event) => event.chunk_id === chunk.chunk_id && event.evidence_ref === chunk.evidence_ref) === true;
     const frozen = eventsByType.get("chunk_frozen")?.some((event) => event.chunk_id === chunk.chunk_id) === true;
     const failed = eventsByType.get("chunk_failed")?.some((event) => event.chunk_id === chunk.chunk_id) === true;

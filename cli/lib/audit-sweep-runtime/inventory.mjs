@@ -111,7 +111,7 @@ async function listFallbackFiles(projectRoot, targetRootRef, excludePatterns) {
 
 function classifyFile(fileRef) {
   const extension = path.posix.extname(fileRef);
-  if ([".md", ".yaml", ".yml", ".json"].includes(extension)) {
+  if ([".md", ".yaml", ".yml", ".json", ".prisma"].includes(extension)) {
     return "contract-or-doc";
   }
   if ([".test.ts", ".test.js", ".spec.ts", ".spec.js"].some((suffix) => fileRef.endsWith(suffix))) {
@@ -509,9 +509,7 @@ export async function createAuditSweepPlan(projectRoot, options) {
   const authorityTextByRef = new Map();
   if (chunkBasis.basis === "spec") {
     for (const entry of includedInventory) {
-      if ([".md", ".markdown"].includes(entry.extension)) {
-        authorityTextByRef.set(entry.file_ref, await readFile(artifactPath(projectRoot, entry.file_ref), "utf8"));
-      }
+      authorityTextByRef.set(entry.file_ref, await readFile(artifactPath(projectRoot, entry.file_ref), "utf8"));
     }
   }
   let chunks = chunkBasis.basis === "spec"

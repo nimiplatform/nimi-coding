@@ -183,7 +183,7 @@ function isNonImplementationContextRef(ref) {
 }
 
 function stripNonImplementationContextRefs(refs, evidenceInventorySet) {
-  return refs.filter((ref) => evidenceInventorySet.has(ref) || !isNonImplementationContextRef(ref));
+  return refs.filter((ref) => !isNonImplementationContextRef(ref));
 }
 
 function normalizeFindingEnvelope(finding, evidenceInventorySet, authorityRefSet = new Set()) {
@@ -412,6 +412,7 @@ function normalizeOutcome(rawOutcome, index, authorityRef, evidenceInventorySet)
     ...normalizeRefs(rawOutcome.inspected_implementation_refs),
     ...normalizeRefs(rawOutcome.implementation_evidence_refs),
   ]);
+  const contextOnlyRefs = inspectedImplementationRefs.filter((ref) => isNonImplementationContextRef(ref));
   const implementationRefs = stripNonImplementationContextRefs(inspectedImplementationRefs, evidenceInventorySet);
   const invalidImplementationRefs = refsOutsideSet(implementationRefs, evidenceInventorySet);
   if (invalidImplementationRefs.length > 0) {
@@ -437,6 +438,9 @@ function normalizeOutcome(rawOutcome, index, authorityRef, evidenceInventorySet)
   }
   if (typeof rawOutcome.implementation_not_applicable_reason === "string" && rawOutcome.implementation_not_applicable_reason.trim()) {
     normalized.implementation_not_applicable_reason = rawOutcome.implementation_not_applicable_reason.trim();
+  }
+  if (!normalized.implementation_not_applicable_reason && implementationRefs.length === 0 && contextOnlyRefs.length > 0) {
+    normalized.implementation_not_applicable_reason = `Only non-implementation context refs were cited: ${uniqueRefs(contextOnlyRefs).join(", ")}.`;
   }
   if (!normalized.reason && status === "not_applicable" && normalized.implementation_not_applicable_reason) {
     normalized.reason = normalized.implementation_not_applicable_reason;
@@ -476,10 +480,17 @@ function normalizeRuleChecks(rawRuleChecks, evidenceInventorySet, authorityRefSe
     if (typeof rawCheck.negative_reasoning !== "string" || !rawCheck.negative_reasoning.trim()) {
       return { ok: false, error: `coverage.p0p1_rule_checks[${index}].negative_reasoning is required` };
     }
-    const rawRefs = stripNonImplementationContextRefs(uniqueRefs(normalizeRefs(rawCheck.implementation_refs)), evidenceInventorySet);
+    const inputRefs = uniqueRefs(normalizeRefs(rawCheck.implementation_refs));
+    const rawRefs = stripNonImplementationContextRefs(inputRefs, evidenceInventorySet);
     const refs = rawRefs.filter((ref) => evidenceInventorySet.has(ref));
     const invalidRawRefs = rawRefs.filter((ref) => !evidenceInventorySet.has(ref) && !authorityRefSet.has(ref));
-    if (rawCheck.status === "checked" && refs.length === 0) {
+    const status = rawCheck.status === "checked"
+      && refs.length === 0
+      && inputRefs.length > 0
+      && inputRefs.every((ref) => isNonImplementationContextRef(ref))
+      ? "not_applicable"
+      : rawCheck.status;
+    if (status === "checked" && refs.length === 0) {
       return { ok: false, error: `coverage.p0p1_rule_checks[${index}].implementation_refs is required when status is checked` };
     }
     if (invalidRawRefs.length > 0) {
@@ -491,7 +502,7 @@ function normalizeRuleChecks(rawRuleChecks, evidenceInventorySet, authorityRefSe
     implementationRefs.push(...refs);
     ruleChecks.push({
       id,
-      status: rawCheck.status,
+      status,
       implementation_refs: refs,
       negative_reasoning: rawCheck.negative_reasoning.trim(),
     });
@@ -524,6 +535,7 @@ function normalizeCodexSemanticOutput(rawOutput, chunk, options) {
   }
 
   const evidenceInventory = chunk.planning_basis === "spec_authority" ? (chunk.evidence_inventory ?? []) : (chunk.files ?? []);
+  const p0p1ImplementationInventory = evidenceInventory.filter((ref) => !isNonImplementationContextRef(ref));
   const evidenceInventorySet = new Set(evidenceInventory);
   const authorityRefSet = new Set(authorityRefs);
   const outcomes = [];
@@ -561,7 +573,7 @@ function normalizeCodexSemanticOutput(rawOutput, chunk, options) {
     chunk_id: chunk.chunk_id,
     auditor: {
       id: typeof rawOutput.auditor?.id === "string" && rawOutput.auditor.id.trim() ? rawOutput.auditor.id : options.auditorId,
-      mode: "codex_semantic_audit",
+      mode: options.auditorMode ?? "codex_semantic_audit",
       methodology_ref: "package://@nimiplatform/nimi-coding/methodology/audit-sweep-p0p1-recall.yaml",
       provenance: {
         kind: "semantic_audit",
@@ -591,12 +603,14 @@ function normalizeCodexSemanticOutput(rawOutput, chunk, options) {
   if (typeof rawOutput.coverage.p0p1_implementation_not_applicable_reason === "string" && rawOutput.coverage.p0p1_implementation_not_applicable_reason.trim()) {
     evidence.coverage.p0p1_implementation_not_applicable_reason = rawOutput.coverage.p0p1_implementation_not_applicable_reason.trim();
   }
-  if (!evidence.coverage.p0p1_implementation_not_applicable_reason && evidenceInventory.length === 0) {
+  if (!evidence.coverage.p0p1_implementation_not_applicable_reason && p0p1ImplementationInventory.length === 0) {
     const outcomeReasons = outcomes
       .map((outcome) => outcome.implementation_not_applicable_reason)
       .filter((reason) => typeof reason === "string" && reason.trim().length > 0);
     if (outcomeReasons.length > 0) {
       evidence.coverage.p0p1_implementation_not_applicable_reason = uniqueRefs(outcomeReasons).join(" ");
+    } else {
+      evidence.coverage.p0p1_implementation_not_applicable_reason = "The chunk has no in-scope implementation refs after excluding context/governance/authority documents.";
     }
   }
   return { ok: true, evidence };
@@ -620,6 +634,7 @@ export async function extractCodexAuditorEvidenceFile(projectRoot, options) {
     sessionRef: options.sessionRef,
     transcriptRef: options.transcriptRef,
     auditorId: options.auditorId,
+    auditorMode: options.auditorMode,
   });
   if (!normalized.ok) {
     return normalized;

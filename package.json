@@ -1,6 +1,6 @@
 {
   "name": "@nimiplatform/nimi-coding",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": false,
   "description": "AI-native coding governance toolkit for bootstrapping .nimi/** into arbitrary projects.",
   "license": "MIT",

@@ -147,8 +147,9 @@ test("package governance and sweep defaults are host agnostic", async () => {
   });
   const roots = runtimeChunks[0].evidence_roots;
   assert.ok(roots.includes("runtime"));
-  assert.ok(roots.includes("config"));
-  assert.ok(roots.includes("scripts"));
+  assert.ok(roots.includes("nimi-runtime"));
+  assert.ok(!roots.includes("config"));
+  assert.ok(!roots.includes("scripts"));
   assert.ok(!roots.includes("proto/runtime/v1"));
   assert.ok(!roots.includes("runtime/internal/protocol"));
   assert.ok(!roots.includes("sdk/src"));
