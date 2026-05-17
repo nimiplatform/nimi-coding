@@ -72,18 +72,27 @@ function commandRuleAllowsCurrentState(rule, doctorResult) {
   };
 }
 function evaluateSkillReadiness(skillId, doctorResult) {
-  if (!doctorResult.ok || !doctorResult.handoffReadiness.ok) {
+  const usesV2SurfaceModel = doctorResult.specGenerationInputs?.mode === "class_filtered";
+  const canBypassV2GlobalHandoffGate = usesV2SurfaceModel
+    && ["spec_reconstruction", "doc_spec_audit"].includes(skillId);
+
+  if (!doctorResult.ok || (!doctorResult.handoffReadiness.ok && !canBypassV2GlobalHandoffGate)) {
     return {
       ok: false,
       reason: "Bootstrap or handoff validation is failing; repair doctor errors before exporting handoff payloads",
     };
   }
-  const usesV2SurfaceModel = doctorResult.specGenerationInputs?.mode === "class_filtered";
   if (usesV2SurfaceModel && (doctorResult.commandGating?.entries ?? []).length === 0) {
     if (skillId === "spec_reconstruction") {
       return {
         ok: true,
         reason: "Projects may delegate spec reconstruction to an external AI host when canonical tree work is needed",
+      };
+    }
+    if (skillId === "doc_spec_audit" && doctorResult.canonicalTree?.requiredFilesValid === true) {
+      return {
+        ok: true,
+        reason: "Skill prerequisites are satisfied by the current project-local truth",
       };
     }
     if (doctorResult.canonicalTree?.requiredFilesValid === true && doctorResult.specGenerationAudit?.ok === true) {
@@ -338,7 +347,7 @@ export async function buildHandoffPayload(projectRoot, skillId) {
     },
     runtimeOwner: doctorResult.delegatedContracts.runtimeOwner,
     triggerMode: doctorResult.delegatedContracts.triggerMode,
-    handoffReady: doctorResult.handoffReadiness.ok,
+    handoffReady: readiness.ok,
     skill: {
       id: skillId,
       required: expectedSkill.required === "true",

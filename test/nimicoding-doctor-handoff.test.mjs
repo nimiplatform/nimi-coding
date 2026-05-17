@@ -518,6 +518,26 @@ test("handoff fails closed for doc spec audit before the canonical tree exists",
   });
 });
 
+test("handoff allows doc spec audit when v2 generation audit still needs repair", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await seedReconstructedTargetTruth(projectRoot);
+    await rm(path.join(projectRoot, ".nimi", "local", "state", "spec-generation", "spec-generation-audit.yaml"), { force: true });
+
+    const handoffResult = await captureRunCli(["handoff", "--skill", "doc_spec_audit", "--json"]);
+
+    assert.equal(handoffResult.exitCode, 0);
+    const payload = JSON.parse(handoffResult.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.handoffReady, true);
+    assert.equal(payload.skill.id, "doc_spec_audit");
+    assert.equal(payload.skill.readiness.ok, true);
+    assert.equal(payload.doctor.handoffReadiness.ok, false);
+  });
+});
+
 test("handoff allows doc spec audit after the canonical tree is ready", async () => {
   await withTempProject(async (projectRoot) => {
     const startResult = await captureRunCli(["start"]);

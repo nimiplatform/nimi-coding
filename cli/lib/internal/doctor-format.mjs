@@ -64,7 +64,7 @@ const DOCTOR_NEXT_STEP_TRANSLATIONS = new Map([
   ["Repair the failing bootstrap checks, then rerun `nimicoding doctor`.", "修复失败的 bootstrap 检查项，然后重新运行 `nimicoding doctor`。"],
   ["Use an external AI host to reconstruct the declared canonical tree under `.nimi/spec`.", "使用外部 AI host 重建声明的 `.nimi/spec` canonical tree。"],
   ["Run `nimicoding blueprint-audit --write-local` after canonical tree generation when a benchmark blueprint is declared.", "当声明了 benchmark blueprint 且 canonical tree 生成完成后，运行 `nimicoding blueprint-audit --write-local`。"],
-  ["Run `nimicoding validate-spec-audit` after generating `.nimi/spec/_meta/spec-generation-audit.yaml` for the canonical tree.", "在为 canonical tree 生成 `.nimi/spec/_meta/spec-generation-audit.yaml` 后，运行 `nimicoding validate-spec-audit`。"],
+  ["Run `nimicoding validate-spec-audit` after generating the local spec generation audit for the canonical tree.", "为 canonical tree 生成本地 spec generation audit 后，运行 `nimicoding validate-spec-audit`。"],
   ["Run `nimicoding handoff --skill doc_spec_audit` and close out the result locally when the audit is complete.", "运行 `nimicoding handoff --skill doc_spec_audit`，并在审计完成后于本地 closeout 结果。"],
   ["Keep runtime ownership delegated; do not assume local skill installation or self-hosting.", "保持 runtime ownership 为 delegated；不要假设本地 skill 安装或 self-hosting。"],
   ["If you want a constrained external execution host, select one in `.nimi/config/host-adapter.yaml`.", "如果你希望使用受约束的外部执行 host，请在 `.nimi/config/host-adapter.yaml` 中选择一个。"],
@@ -86,6 +86,7 @@ function summarizeDoctorState(result) {
   const blockingChecks = result.checks.filter((check) => check.severity === "error");
   const warningChecks = result.checks.filter((check) => check.severity === "warn");
   const importantInfoChecks = result.checks.filter((check) => check.severity === "info").slice(0, 2);
+  const usesV2SurfaceModel = result.specGenerationInputs?.mode === "class_filtered";
 
   const bootstrapState = !result.bootstrapPresent
     ? localize("missing", "缺失")
@@ -93,7 +94,7 @@ function summarizeDoctorState(result) {
       ? localize("ready", "就绪")
       : localize("needs attention", "需要关注");
 
-  const canonicalTreeState = !result.specTreeModel?.ok
+  const canonicalTreeState = !usesV2SurfaceModel && !result.specTreeModel?.ok
     ? localize("invalid", "无效")
     : !result.canonicalTree.requiredFilesValid
       ? localize("incomplete", "未完成")

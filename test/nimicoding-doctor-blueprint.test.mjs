@@ -101,7 +101,8 @@ test("doctor validates a freshly started bootstrap", async () => {
 
     assert.equal(doctorResult.exitCode, 0);
     assert.match(doctorResult.stdout, /status: ok/);
-    assert.match(doctorResult.stdout, /project rules: invalid/);
+    assert.match(doctorResult.stdout, /project rules: incomplete/);
+    assert.match(doctorResult.stdout, /lifecycle: canonical_tree_in_progress \/ surface_class_validated/);
     assert.match(doctorResult.stdout, /AI entry files: connected/);
   });
 });
@@ -117,9 +118,11 @@ test("doctor emits machine-readable JSON", async () => {
     const payload = JSON.parse(doctorResult.stdout);
     assert.equal(payload.ok, true);
     assert.equal(payload.bootstrapPresent, true);
-    assert.equal(payload.reconstructionRequired, false);
+    assert.equal(payload.reconstructionRequired, true);
     assert.equal(payload.runtimeInstalled, false);
     assert.equal(payload.handoffReadiness.ok, true);
+    assert.equal(payload.lifecycleState.treeState, "canonical_tree_in_progress");
+    assert.equal(payload.lifecycleState.authorityMode, "surface_class_validated");
     assert.equal(payload.specGenerationInputs.mode, "class_filtered");
     assert.equal(payload.specGenerationInputs.benchmarkMode, "none");
     assert.equal(payload.benchmarkAuditReadiness.available, false);

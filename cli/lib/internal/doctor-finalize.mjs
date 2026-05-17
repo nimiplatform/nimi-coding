@@ -37,6 +37,24 @@ import {
 
 const PACKAGE_REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
+function deriveV2LifecycleState(bootstrapSurface) {
+  const treeReady = bootstrapSurface.canonicalTree.requiredFilesValid === true;
+  const benchmarkMode = bootstrapSurface.specGenerationInputs?.benchmarkMode
+    ?? bootstrapSurface.blueprintReference?.mode
+    ?? "none";
+
+  return {
+    mode: "class_filtered",
+    treeState: treeReady ? "canonical_tree_ready" : "canonical_tree_in_progress",
+    authorityMode: "surface_class_validated",
+    blueprintMode: benchmarkMode,
+    reconstructionRequired: !treeReady,
+    readyForAiReconstruction: !treeReady,
+    cutoverReadiness: {},
+    activeAuthorityRoot: bootstrapSurface.specGenerationInputs?.canonicalTargetRoot ?? ".nimi/spec",
+  };
+}
+
 export async function finalizeDoctorState(projectRoot, bootstrapSurface, delegatedSurface) {
   const checks = [...bootstrapSurface.checks, ...delegatedSurface.checks];
   const usesV2SurfaceModel = bootstrapSurface.specGenerationInputs?.mode === "class_filtered";
@@ -264,7 +282,19 @@ export async function finalizeDoctorState(projectRoot, bootstrapSurface, delegat
   }
 
   const hasErrors = checks.some((check) => check.severity === "error");
-  const reconstructionRequired = bootstrapSurface.bootstrapStateContract.reconstructionRequired === true;
+  const lifecycleState = usesV2SurfaceModel
+    ? deriveV2LifecycleState(bootstrapSurface)
+    : {
+      mode: bootstrapSurface.bootstrapStateContract.mode,
+      treeState: bootstrapSurface.bootstrapStateContract.treeState,
+      authorityMode: bootstrapSurface.bootstrapStateContract.authorityMode,
+      blueprintMode: bootstrapSurface.bootstrapStateContract.blueprintMode,
+      reconstructionRequired: bootstrapSurface.bootstrapStateContract.reconstructionRequired,
+      readyForAiReconstruction: bootstrapSurface.bootstrapStateContract.readyForAiReconstruction,
+      cutoverReadiness: bootstrapSurface.bootstrapStateContract.cutoverReadiness,
+      activeAuthorityRoot: bootstrapSurface.bootstrapStateContract.activeAuthorityRoot,
+    };
+  const reconstructionRequired = lifecycleState.reconstructionRequired === true;
 
   const handoffReadiness = {
     ok: delegatedSurface.handoffContextOk
@@ -355,16 +385,7 @@ export async function finalizeDoctorState(projectRoot, bootstrapSurface, delegat
       id: bootstrapSurface.bootstrapCompatibility.contractId,
       version: bootstrapSurface.bootstrapCompatibility.contractVersion,
     },
-    lifecycleState: {
-      mode: bootstrapSurface.bootstrapStateContract.mode,
-      treeState: bootstrapSurface.bootstrapStateContract.treeState,
-      authorityMode: bootstrapSurface.bootstrapStateContract.authorityMode,
-      blueprintMode: bootstrapSurface.bootstrapStateContract.blueprintMode,
-      reconstructionRequired: bootstrapSurface.bootstrapStateContract.reconstructionRequired,
-      readyForAiReconstruction: bootstrapSurface.bootstrapStateContract.readyForAiReconstruction,
-      cutoverReadiness: bootstrapSurface.bootstrapStateContract.cutoverReadiness,
-      activeAuthorityRoot: bootstrapSurface.bootstrapStateContract.activeAuthorityRoot,
-    },
+    lifecycleState,
     specTreeModel: bootstrapSurface.specTreeModel,
     specGenerationInputs: bootstrapSurface.specGenerationInputs,
     canonicalTree: bootstrapSurface.canonicalTree,

@@ -168,7 +168,63 @@ test("doctor accepts v2 canonical tree readiness without bootstrap-state lifecyc
 
     const payload = JSON.parse(doctorResult.stdout);
     assert.equal(payload.ok, true);
+    assert.equal(payload.lifecycleState.mode, "class_filtered");
+    assert.equal(payload.lifecycleState.treeState, "canonical_tree_ready");
+    assert.equal(payload.lifecycleState.authorityMode, "surface_class_validated");
     assert.ok(payload.checks.some((check) => check.id === "bootstrap_state_contract" && check.ok === true));
+
+    const textResult = await captureRunCli(["doctor"]);
+    assert.equal(textResult.exitCode, 0);
+    assert.match(textResult.stdout, /project rules: ready/);
+    assert.match(textResult.stdout, /lifecycle: canonical_tree_ready \/ surface_class_validated/);
+    assert.doesNotMatch(textResult.stdout, /project rules: invalid/);
+    assert.doesNotMatch(textResult.stdout, /lifecycle: unknown \/ unknown/);
+  });
+});
+
+test("doctor accepts v2 readiness after legacy meta carriers move out of host spec", { concurrency: false }, async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    const legacyMoves = [
+      {
+        packageSource: "spec/_meta/spec-tree-model.yaml",
+        hostRef: ".nimi/spec/_meta/spec-tree-model.yaml",
+        localRef: ".nimi/local/state/spec-tree-model.yaml",
+      },
+      {
+        packageSource: "spec/_meta/command-gating-matrix.yaml",
+        hostRef: ".nimi/spec/_meta/command-gating-matrix.yaml",
+        localRef: ".nimi/local/state/command-gating-matrix.yaml",
+      },
+      {
+        packageSource: "spec/bootstrap-state.yaml",
+        hostRef: ".nimi/spec/bootstrap-state.yaml",
+        localRef: ".nimi/local/state/bootstrap-state.yaml",
+      },
+    ];
+
+    for (const legacyMove of legacyMoves) {
+      const content = await readFile(path.join(repoRoot, legacyMove.packageSource), "utf8");
+      const hostPath = path.join(projectRoot, legacyMove.hostRef);
+      const localPath = path.join(projectRoot, legacyMove.localRef);
+      await mkdir(path.dirname(hostPath), { recursive: true });
+      await mkdir(path.dirname(localPath), { recursive: true });
+      await writeFile(hostPath, content, "utf8");
+      await writeFile(localPath, content, "utf8");
+      await rm(hostPath, { force: true });
+    }
+
+    await seedReconstructedTargetTruth(projectRoot);
+
+    const doctorResult = await captureRunCli(["doctor", "--json"]);
+    assert.equal(doctorResult.exitCode, 0);
+    const payload = JSON.parse(doctorResult.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.lifecycleState.treeState, "canonical_tree_ready");
+    assert.equal(payload.lifecycleState.authorityMode, "surface_class_validated");
+    assert.equal(payload.specGenerationAudit.auditPath, ".nimi/local/state/spec-generation/spec-generation-audit.yaml");
   });
 });
 
