@@ -30,6 +30,7 @@ import {
   clusteredAuditFinding,
   writeAuditEvidence,
 } from "./nimicoding-test-utils.mjs";
+import { VERSION } from "../cli/constants.mjs";
 
 test("start rejects unknown options without creating bootstrap files", async () => {
   await withTempProject(async (projectRoot) => {
@@ -365,4 +366,24 @@ Custom guidance below.
     assert.match(agents, /Custom guidance below\./);
     assert.equal(bootstrapConfig, "initialized_by: custom-user\n");
   });
+});
+
+test("bootstrap cli_version stays in lockstep with the package version and VERSION constant", async () => {
+  const bootstrapConfig = YAML.parse(
+    await readFile(path.join(repoRoot, "config", "bootstrap.yaml"), "utf8"),
+  );
+  const packageJson = JSON.parse(
+    await readFile(path.join(repoRoot, "package.json"), "utf8"),
+  );
+
+  assert.equal(
+    bootstrapConfig.cli_version,
+    packageJson.version,
+    "config/bootstrap.yaml cli_version must equal package.json version",
+  );
+  assert.equal(
+    bootstrapConfig.cli_version,
+    VERSION,
+    "config/bootstrap.yaml cli_version must equal the VERSION constant",
+  );
 });

@@ -4,6 +4,15 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.5
+
+- Fixed the `cli_version` field in `config/bootstrap.yaml` drifting away from
+  the package version; it had been stale since the 0.2.3 release missed the
+  bump and 0.2.4 inherited the miss.
+- Added a release guard test asserting that `cli_version`, the `package.json`
+  version, and the `VERSION` constant stay in lockstep, so future releases
+  cannot silently miss the bump.
+
 ## 0.2.4
 
 - Added the `product_state_machine` and `product_record_schema` table families
