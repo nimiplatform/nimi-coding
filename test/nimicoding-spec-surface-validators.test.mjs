@@ -181,6 +181,62 @@ test("validate-table-family accepts an admitted release gate registry table", as
   });
 });
 
+test("validate-table-family accepts an admitted product state machine table without transitions", async () => {
+  await withTempProject(async (projectRoot) => {
+    await seedValidRuntimeTableProject(projectRoot);
+    await writeProjectFile(
+      projectRoot,
+      ".nimi/spec/platform/kernel/tables/first-run-state-machine.yaml",
+      YAML.stringify({
+        table_family: "product_state_machine",
+        owner: "platform",
+        state_machine_id: "first_run",
+        states: [
+          {
+            state: "not_started",
+            exit_conditions: ["user_completes_first_run"],
+          },
+          {
+            state: "complete",
+            entry_conditions: ["user_completes_first_run"],
+          },
+        ],
+      }),
+    );
+
+    const result = await runCliSubprocess(["validate-table-family", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
+    assert.equal(result.exitCode, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.validator, "validate-table-family");
+    assert.equal(payload.ok, true);
+  });
+});
+
+test("validate-table-family accepts an admitted product record schema table", async () => {
+  await withTempProject(async (projectRoot) => {
+    await seedValidRuntimeTableProject(projectRoot);
+    await writeProjectFile(
+      projectRoot,
+      ".nimi/spec/platform/kernel/tables/product-control-record-schema.yaml",
+      YAML.stringify({
+        table_family: "product_record_schema",
+        owner: "platform",
+        record_id: "product_control_record",
+        path: ".nimi/spec/platform/kernel/tables/product-control-record-schema.yaml",
+        schema_version: "product-control-record/v1",
+        required_top_level_fields: ["version", "record_id", "owner"],
+        invariants: ["record_id_is_stable", "owner_is_product_domain"],
+      }),
+    );
+
+    const result = await runCliSubprocess(["validate-table-family", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
+    assert.equal(result.exitCode, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.validator, "validate-table-family");
+    assert.equal(payload.ok, true);
+  });
+});
+
 test("classify-spec-tree treats support_registry table family as support registry", async () => {
   await withTempProject(async (projectRoot) => {
     await seedValidRuntimeTableProject(projectRoot);
@@ -295,6 +351,28 @@ test("validate-table-family fails when a kernel table has no table_family", asyn
     assert.equal(payload.validator, "validate-table-family");
     assert.equal(payload.ok, false);
     assert.match(JSON.stringify(payload.errors), /missing_table_family/);
+  });
+});
+
+test("validate-table-family fails closed on an unknown table family", async () => {
+  await withTempProject(async (projectRoot) => {
+    await seedValidRuntimeTableProject(projectRoot);
+    await writeProjectFile(
+      projectRoot,
+      ".nimi/spec/platform/kernel/tables/unknown-family.yaml",
+      YAML.stringify({
+        table_family: "unadmitted_product_shape",
+        owner: "platform",
+        entries: [],
+      }),
+    );
+
+    const result = await runCliSubprocess(["validate-table-family", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
+    assert.equal(result.exitCode, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.validator, "validate-table-family");
+    assert.equal(payload.ok, false);
+    assert.match(JSON.stringify(payload.errors), /unknown_table_family/);
   });
 });
 
