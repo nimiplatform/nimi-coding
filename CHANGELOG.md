@@ -4,6 +4,15 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.4
+
+- Added the `product_state_machine` and `product_record_schema` table families
+  for product-owned kernel tables, covering state machines and record-schema
+  tables that are neither closed enums, generic product catalogs, nor release
+  gate registries.
+- Kept table-family admission fail-closed: any table family outside the
+  admitted set is still rejected with `unknown_table_family`.
+
 ## 0.2.3
 
 - Added `nimicoding sweep audit chunk audit-claude` for Claude-backed sweep
