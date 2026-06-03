@@ -80,7 +80,6 @@ function isAllowedTopLevelSupportFile(relativePath) {
     "INDEX.md",
     "bootstrap-state.yaml",
     "product-scope.yaml",
-    "high-risk-admissions.yaml",
   ].includes(relativePath);
 }
 

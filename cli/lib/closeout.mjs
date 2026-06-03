@@ -44,7 +44,6 @@ function translateCloseoutReason(reason) {
     ["Completed closeout requires declared canonical tree files to be valid", "完成 closeout 需要声明的 canonical tree 文件有效"],
     ["Completed closeout requires a valid `.nimi/local/state/spec-generation/spec-generation-audit.yaml` artifact", "完成 closeout 需要一个有效的 `.nimi/local/state/spec-generation/spec-generation-audit.yaml` 产物"],
     ["Completed doc_spec_audit closeout must compare against `.nimi/spec`", "完成 doc_spec_audit closeout 时必须对 `.nimi/spec` 进行比较"],
-    ["Completed high_risk_execution closeout requires canonical admissions truth to remain `.nimi/spec/high-risk-admissions.yaml`", "完成 high_risk_execution closeout 需要 canonical admissions truth 继续落在 `.nimi/spec/high-risk-admissions.yaml`"],
     ["Completed closeout is consistent with the current canonical tree state", "completed closeout 与当前 canonical tree 状态一致"],
     ["Imported spec_reconstruction summary must match active spec-generation audit coverage", "导入的 spec_reconstruction 摘要必须与当前 spec-generation audit 覆盖情况一致"],
   ]);
@@ -391,19 +390,6 @@ function evaluateCloseoutReadiness(skillId, outcome, doctorResult, summary) {
       return {
         ok: false,
         reason: "Completed doc_spec_audit closeout must compare against `.nimi/spec`",
-      };
-    }
-  }
-
-  if (rule.completedRequires.high_risk_admissions_truth_ref) {
-    const admissionsTruthPath = rule.completedRequires.high_risk_admissions_truth_ref;
-    const expectedAdmissionsPath = doctorResult.commandGating.entries.find(
-      (entry) => entry.command === "admit-high-risk-decision" && entry.requires?.canonical_admissions_truth,
-    )?.requires?.canonical_admissions_truth ?? ".nimi/spec/high-risk-admissions.yaml";
-    if (admissionsTruthPath !== expectedAdmissionsPath) {
-      return {
-        ok: false,
-        reason: "Completed high_risk_execution closeout requires canonical admissions truth to remain `.nimi/spec/high-risk-admissions.yaml`",
       };
     }
   }

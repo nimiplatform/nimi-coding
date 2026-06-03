@@ -69,7 +69,7 @@ named host-profile recognition, and explicit manager-owned admission, but
 final high-risk completion should still stay bounded by `nimicoding`
 validators, explicit local closeout/decision/ingest/review surfaces, and
 manual manager-side admission rather than automatic semantic promotion. The
-canonical admission target is now also shape-validated by a package-owned
+local admission evidence target is now also shape-validated by a package-owned
 admission schema contract before `nimicoding` accepts it as semantic truth.
 
 ## Recommended First-User Flow

@@ -67,7 +67,7 @@ export function parseHighRiskAdmissionContract(text) {
   const dispositionEnum = toStringArray(parsed?.disposition_enum);
 
   return {
-    ok: String(parsed?.truth_contract?.id ?? "") === "canonical_high_risk_admissions_truth"
+    ok: String(parsed?.truth_contract?.id ?? "") === "local_high_risk_admission_evidence"
       && arraysEqual(topLevelRequiredKeys, HIGH_RISK_ADMISSION_REQUIRED_TOP_LEVEL_KEYS)
       && arraysEqual(admissionRequiredFields, HIGH_RISK_ADMISSION_RECORD_REQUIRED_FIELDS)
       && arraysEqual(dispositionEnum, HIGH_RISK_ADMISSION_DISPOSITION_ENUM),

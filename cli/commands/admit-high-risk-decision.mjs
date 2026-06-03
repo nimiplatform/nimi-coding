@@ -10,7 +10,7 @@ function parseAdmitHighRiskDecisionOptions(args) {
     fromPath: null,
     admittedAt: null,
     json: false,
-    writeSpec: false,
+    writeLocal: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -21,8 +21,8 @@ function parseAdmitHighRiskDecisionOptions(args) {
       continue;
     }
 
-    if (arg === "--write-spec") {
-      options.writeSpec = true;
+    if (arg === "--write-local") {
+      options.writeLocal = true;
       continue;
     }
 
@@ -92,7 +92,7 @@ export async function runAdmitHighRiskDecision(args) {
     return payload.exitCode;
   }
 
-  if (payload.ok && parsed.options.writeSpec) {
+  if (payload.ok && parsed.options.writeLocal) {
     await writeHighRiskAdmission(process.cwd(), payload);
   }
 

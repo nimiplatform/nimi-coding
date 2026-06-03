@@ -210,7 +210,7 @@ test("start bootstraps the project, integrates entrypoints, and prepares spec re
     assert.match(auditSweepContract, /candidate_ready/);
     assert.match(highRiskExecutionContract, /delegated_high_risk_execution_result/);
     assert.match(highRiskExecutionContract, /candidate_ready/);
-    assert.match(highRiskAdmissionContract, /canonical_high_risk_admissions_truth/);
+    assert.match(highRiskAdmissionContract, /local_high_risk_admission_evidence/);
     assert.match(highRiskAdmissionContract, /source_decision_contract/);
     assert.match(specGenerationInputsContract, /canonical_spec_generation_inputs/);
     assert.match(specGenerationInputsContract, /acceptance_mode_enum:/);

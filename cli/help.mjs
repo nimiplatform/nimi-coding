@@ -71,7 +71,7 @@ export function helpText() {
     `  ${styleCommand("nimicoding sweep design finalize --run-id <id> [--json]")}`,
     `  ${styleCommand("nimicoding sweep design wave-plan --run-id <id> --topic-id <id> [--json]")}`,
     `  ${styleCommand("nimicoding sweep design fix-topic --run-id <id> [--slug <slug>] [--title <title>] [--admit-first-wave|--admit-wave-id <id>] [--json]")}`,
-    `  ${styleCommand("nimicoding admit-high-risk-decision --from <json> --admitted-at <iso8601> [--json] [--write-spec]")}`,
+    `  ${styleCommand("nimicoding admit-high-risk-decision --from <json> --admitted-at <iso8601> [--json] [--write-local]")}`,
     `  ${styleCommand("nimicoding closeout --skill <skill-id> --outcome <completed|blocked|failed> --verified-at <iso8601>")}`,
     `  ${styleCommand("nimicoding closeout --skill <skill-id> --outcome <completed|blocked|failed> --verified-at <iso8601> --json")}`,
     `  ${styleCommand("nimicoding closeout --skill <skill-id> --outcome <completed|blocked|failed> --verified-at <iso8601> --write-local")}`,

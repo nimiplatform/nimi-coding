@@ -56,4 +56,4 @@ canonical_spec_model:
     - command_behavior_rewrites_not_admitted
     - authority_cutover_not_admitted
     - physical_spec_tree_migration_not_admitted
-  high_risk_admissions_truth: .nimi/spec/high-risk-admissions.yaml
+  high_risk_admission_evidence: .nimi/local/high-risk-admissions.yaml

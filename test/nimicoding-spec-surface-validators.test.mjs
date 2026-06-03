@@ -283,7 +283,7 @@ test("package default domain admission stays a generic project skeleton", async 
   assert.ok(contract.semantic_constraints.includes("product_hosts_must_own_domain_specific_admission_as_host_profile_override"));
 });
 
-test("classify-spec-tree keeps compact high-risk admissions as product admission registry", async () => {
+test("validate-placement rejects high-risk admission evidence under active spec", async () => {
   await withTempProject(async (projectRoot) => {
     await seedValidRuntimeTableProject(projectRoot);
     await writeProjectFile(
@@ -296,43 +296,17 @@ test("classify-spec-tree keeps compact high-risk admissions as product admission
           disposition: "complete",
           admitted_at: "2026-05-01T00:00:00Z",
           manager_review_owner: "nimicoding-manager",
-          summary: "Runtime authority admitted as product governance truth.",
+          summary: "Runtime authority admitted as local evidence.",
           source_decision_contract: ".nimi/topics/closed/2026-05-01-runtime-authority/packet-wave-0-authority-admit.md",
         }],
-        admission_rules: ["explicit_manager_owned_decision_required_before_canonical_high_risk_admission"],
-        semantic_constraints: ["canonical_admission_records_must_not_promote_operational_runtime_state"],
+        admission_rules: ["explicit_manager_owned_decision_required_before_high_risk_local_evidence"],
+        semantic_constraints: ["local_admission_records_must_not_be_used_as_product_authority"],
       }),
-    );
-
-    const result = await runCliSubprocess(["classify-spec-tree", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
-    assert.equal(result.exitCode, 0);
-    const payload = JSON.parse(result.stdout);
-    const entry = payload.inventory.inventory.find((item) => item.source_path === ".nimi/spec/high-risk-admissions.yaml");
-    assert.equal(entry.current_inferred_class, "product_admission_registry");
-    assert.equal(entry.target_class, "product_admission_registry");
-    assert.equal(entry.disposition, "keep");
-    assert.equal(entry.required_confirmation, "none");
-  });
-});
-
-test("validate-placement rejects package methodology body inside product admission registry", async () => {
-  await withTempProject(async (projectRoot) => {
-    await seedValidRuntimeTableProject(projectRoot);
-    await writeProjectFile(
-      projectRoot,
-      ".nimi/spec/high-risk-admissions.yaml",
-      [
-        "admissions: []",
-        "admission_rules: []",
-        "semantic_constraints: []",
-        "package_name: \"@nimiplatform/nimi-coding\"",
-        "",
-      ].join("\n"),
     );
 
     const result = await runCliSubprocess(["validate-placement", "--profile", "nimi", "--root", ".nimi/spec", "--json"], { cwd: projectRoot });
     assert.equal(result.exitCode, 1);
-    assert.match(result.stdout, /product_admission_registry_contains_package_methodology_body/);
+    assert.match(result.stdout, /unclassified_file: \.nimi\/spec\/high-risk-admissions\.yaml/);
   });
 });
 

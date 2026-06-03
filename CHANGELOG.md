@@ -4,6 +4,16 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.6
+
+- Hard-cut high-risk admission records out of active `.nimi/spec/**`
+  authority. Admission records are now local-only evidence under
+  `.nimi/local/high-risk-admissions.yaml`; product authority must live in
+  domain spec files.
+- Removed the `product_admission_registry` surface class and changed
+  `admit-high-risk-decision` to write local evidence through `--write-local`
+  instead of writing canonical spec truth.
+
 ## 0.2.5
 
 - Fixed the `cli_version` field in `config/bootstrap.yaml` drifting away from

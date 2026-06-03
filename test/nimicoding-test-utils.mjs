@@ -216,7 +216,6 @@ async function seedReconstructedTargetTruth(projectRoot) {
     "project/kernel/index.md": "# Project Kernel\n\n- Canonical kernel index.\n",
     "project/kernel/core-rules.md": "# Core Rules\n\n- Rule 1: fail closed on authority ambiguity.\n",
     "project/kernel/tables/rule-catalog.yaml": "table_family: product_catalog\nowner: project\ncatalog_id: rule_catalog\nentries:\n  - id: rule-1\n    name: fail_closed_on_authority_ambiguity\n",
-    "high-risk-admissions.yaml": "admissions: []\nadmission_rules: []\nsemantic_constraints: []\n",
   };
 
   for (const [relativePath, contents] of Object.entries(canonicalFiles)) {
@@ -280,15 +279,6 @@ async function seedReconstructedTargetTruth(projectRoot) {
             unresolved_items: [],
             notes: [],
           },
-          {
-            canonical_path: ".nimi/spec/high-risk-admissions.yaml",
-            surface_class: "product_admission_registry",
-            source_refs: [".nimi/spec/high-risk-admissions.yaml"],
-            source_basis: "grounded",
-            coverage_status: "complete",
-            unresolved_items: [],
-            notes: [],
-          },
         ],
       },
     }),
@@ -314,9 +304,7 @@ async function seedReconstructedTargetTruth(projectRoot) {
 }
 
 async function seedTargetTruthFilesOnly(projectRoot) {
-  const targetFiles = {
-    "high-risk-admissions.yaml": "admissions: []\nadmission_rules: []\nsemantic_constraints: []\n",
-  };
+  const targetFiles = {};
 
   for (const [fileName, contents] of Object.entries(targetFiles)) {
     await writeFile(

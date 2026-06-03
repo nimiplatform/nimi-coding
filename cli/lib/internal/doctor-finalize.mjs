@@ -22,12 +22,10 @@ import {
   loadHighRiskExecutionContract,
   loadHighRiskSchemaContracts,
   loadSpecReconstructionContract,
-  validateHighRiskAdmissionsSpec,
 } from "../contracts.mjs";
 import { loadAuditExecutionArtifactsConfig } from "../audit-execution.mjs";
 import { loadExternalExecutionArtifactsConfig } from "../external-execution.mjs";
-import { pathExists, readTextIfFile } from "../fs-helpers.mjs";
-import { parseYamlText } from "../yaml-helpers.mjs";
+import { readTextIfFile } from "../fs-helpers.mjs";
 import { buildCheck } from "./doctor-state.mjs";
 import {
   buildHostCompatibilityReport,
@@ -149,30 +147,6 @@ export async function finalizeDoctorState(projectRoot, bootstrapSurface, delegat
         : `High-risk execution schema seeds are missing or malformed: ${highRiskSchemaContracts.filter((entry) => !entry.ok).map((entry) => entry.path).join(", ")}`,
     ),
   );
-
-  let highRiskAdmissionsTruthValid = true;
-  const admissionsTruthRef = ".nimi/spec/high-risk-admissions.yaml";
-  const admissionsInfo = await pathExists(path.join(projectRoot, admissionsTruthRef));
-  if (admissionsInfo && admissionsInfo.isFile()) {
-    const admissionsTruthText = await readTextIfFile(path.join(projectRoot, admissionsTruthRef));
-    const admissionsTruthParsed = admissionsTruthText ? parseYamlText(admissionsTruthText) : null;
-    const admissionsTruthValidation = highRiskAdmissionContract.ok
-      ? validateHighRiskAdmissionsSpec(admissionsTruthParsed, highRiskAdmissionContract)
-      : {
-        ok: false,
-        reason: `${HIGH_RISK_ADMISSION_CONTRACT_REF} is missing or malformed`,
-      };
-    highRiskAdmissionsTruthValid = admissionsTruthValidation.ok;
-    checks.push(
-      buildCheck(
-        "high_risk_admissions_truth",
-        admissionsTruthValidation.ok,
-        admissionsTruthValidation.ok
-          ? "Canonical high-risk admissions truth satisfies the packaged admission schema contract"
-          : `Canonical high-risk admissions truth drifted: ${admissionsTruthValidation.reason}`,
-      ),
-    );
-  }
 
   const adapterProfiles = await loadAdmittedAdapterProfiles(delegatedSurface.admittedAdapterIds);
   adapterProfiles.selected = selectAdapterProfile(adapterProfiles, delegatedSurface.selectedAdapterId);
@@ -312,7 +286,6 @@ export async function finalizeDoctorState(projectRoot, bootstrapSurface, delegat
       && externalHostCompatibilityContract.ok
       && highRiskExecutionContract.ok
       && highRiskAdmissionContract.ok
-      && highRiskAdmissionsTruthValid
       && externalExecutionArtifacts.ok
       && packageBoundaryTruthOk
       && (usesV2SurfaceModel || bootstrapSurface.specTreeModel.ok)

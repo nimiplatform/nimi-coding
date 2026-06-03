@@ -48,7 +48,6 @@ const DOCTOR_DETAIL_TRANSLATIONS = new Map([
   ["Packaged high-risk admission schema contract is present and aligned", "包内 high-risk admission schema 契约存在且一致"],
   ["external execution artifact landing-path contract is present and structurally valid", "external execution artifact landing-path 契约存在且结构有效"],
   ["High-risk execution schema seeds are present and structurally valid", "high-risk execution schema seed 已存在且结构有效"],
-  ["Canonical high-risk admissions truth satisfies the packaged admission schema contract", "canonical high-risk admissions truth 满足包内 admission schema 契约"],
   ["No host adapter selected; vendor-neutral delegated host posture remains active", "未选择 host adapter；vendor-neutral 的 delegated host 姿态仍然生效"],
   ["Package-owned adapter profile overlays are present and valid: codex, oh_my_codex, claude", "包内 adapter profile overlay 已存在且有效：codex, oh_my_codex, claude"],
   ["Host adapter boundary keeps semantic review in nimicoding and limits handoff to prompt/output/evidence", "host adapter 边界保持 semantic review 在 nimicoding 内，并将 handoff 限制为 prompt/output/evidence"],

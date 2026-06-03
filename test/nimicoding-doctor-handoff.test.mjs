@@ -231,14 +231,15 @@ test("doctor warns when canonical-tree-ready state loses the generation audit ar
   });
 });
 
-test("doctor fails closed when canonical admissions truth drifts from the packaged schema contract", async () => {
+test("doctor does not promote local high-risk admission evidence to product authority readiness", async () => {
   await withTempProject(async (projectRoot) => {
     const startResult = await captureRunCli(["start"]);
     assert.equal(startResult.exitCode, 0);
 
     await seedReconstructedTargetTruth(projectRoot);
+    await mkdir(path.join(projectRoot, ".nimi", "local"), { recursive: true });
     await writeFile(
-      path.join(projectRoot, ".nimi", "spec", "high-risk-admissions.yaml"),
+      path.join(projectRoot, ".nimi", "local", "high-risk-admissions.yaml"),
       [
         "admissions:",
         "  - topic_id: topic-1",
@@ -257,14 +258,11 @@ test("doctor fails closed when canonical admissions truth drifts from the packag
 
     const doctorResult = await captureRunCli(["doctor", "--json"]);
 
-    assert.equal(doctorResult.exitCode, 1);
+    assert.equal(doctorResult.exitCode, 0);
     const payload = JSON.parse(doctorResult.stdout);
-    assert.equal(payload.ok, false);
-    assert.equal(payload.handoffReadiness.ok, false);
-    assert.match(
-      JSON.stringify(payload.checks),
-      /Canonical high-risk admissions truth drifted: high-risk admission record admitted_at must be an ISO-8601 UTC timestamp/,
-    );
+    assert.equal(payload.ok, true);
+    assert.equal(payload.handoffReadiness.ok, true);
+    assert.doesNotMatch(JSON.stringify(payload.checks), /high_risk_admissions_truth/);
   });
 });
 

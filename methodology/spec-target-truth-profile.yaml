@@ -12,7 +12,6 @@ target_truth_profile:
     - .nimi/spec/boundaries.yaml
     - .nimi/spec/ownership.yaml
     - .nimi/spec/change-policy.yaml
-    - .nimi/spec/high-risk-admissions.yaml
   output_profiles:
     - path: .nimi/spec/authority-map.yaml
       purpose: map_project_authority_surfaces_and_declared_owners
@@ -38,12 +37,6 @@ target_truth_profile:
         - work_types
         - authority_gates
         - parallel_truth_policy
-    - path: .nimi/spec/high-risk-admissions.yaml
-      purpose: record_explicit_high_risk_semantic_admissions_as_canonical_truth
-      minimum_sections:
-        - admissions
-        - admission_rules
-        - semantic_constraints
   hard_constraints:
     - do_not_seed_empty_target_truth_files_during_bootstrap
     - do_not_treat_profile_as_canonical_tree_completion

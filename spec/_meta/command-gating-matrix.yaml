@@ -119,7 +119,7 @@ command_gating_matrix:
     completed_requires:
       tree_state: canonical_tree_ready
       canonical_required_files_valid: true
-      high_risk_admissions_truth_ref: .nimi/spec/high-risk-admissions.yaml
+      high_risk_admission_evidence_ref: .nimi/local/high-risk-admissions.yaml
   - command: ingest-high-risk-execution
     requires:
       tree_state: canonical_tree_ready
@@ -136,7 +136,7 @@ command_gating_matrix:
   - command: admit-high-risk-decision
     requires:
       tree_state: canonical_tree_ready
-      canonical_admissions_truth: .nimi/spec/high-risk-admissions.yaml
+      high_risk_admission_evidence: .nimi/local/high-risk-admissions.yaml
     allowed_authority_modes:
       - external_authority_active
       - canonical_cutover_ready

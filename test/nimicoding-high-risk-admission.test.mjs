@@ -491,7 +491,7 @@ test("decide-high-risk-execution rejects invalid manager acceptance artifacts", 
   });
 });
 
-test("admit-high-risk-decision updates canonical high-risk admissions truth when explicitly requested", async () => {
+test("admit-high-risk-decision writes local high-risk admission evidence when explicitly requested", async () => {
   await withTempProject(async (projectRoot) => {
     const startResult = await captureRunCli(["start"]);
     assert.equal(startResult.exitCode, 0);
@@ -566,7 +566,7 @@ test("admit-high-risk-decision updates canonical high-risk admissions truth when
       decisionPayload.artifactPath,
       "--admitted-at",
       "2026-04-11T00:00:00.000Z",
-      "--write-spec",
+      "--write-local",
       "--json",
     ]);
 
@@ -574,13 +574,15 @@ test("admit-high-risk-decision updates canonical high-risk admissions truth when
     const payload = JSON.parse(admitResult.stdout);
     assert.equal(payload.contractVersion, "nimicoding.high-risk-admission.v1");
     assert.equal(payload.ok, true);
+    assert.equal(payload.localOnly, true);
+    assert.equal(payload.semanticTargetRef, ".nimi/local/high-risk-admissions.yaml");
     assert.equal(payload.admissionAction, "created");
     assert.equal(payload.admissionRecord.topic_id, "topic-1");
     assert.equal(payload.admissionRecord.packet_id, "pkt-1");
     assert.equal(payload.admissionRecord.disposition, "complete");
 
     const admissionsText = await readFile(
-      path.join(projectRoot, ".nimi", "spec", "high-risk-admissions.yaml"),
+      path.join(projectRoot, ".nimi", "local", "high-risk-admissions.yaml"),
       "utf8",
     );
     assert.match(admissionsText, /topic_id: topic-1/);

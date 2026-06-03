@@ -1,4 +1,4 @@
-import { realpath, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import YAML from "yaml";
@@ -24,7 +24,23 @@ import { validateExecutionPacket } from "./validators.mjs";
 import { isIsoUtcTimestamp, isPlainObject } from "./value-helpers.mjs";
 import { parseYamlText } from "./yaml-helpers.mjs";
 
-const ADMISSIONS_SPEC_REF = ".nimi/spec/high-risk-admissions.yaml";
+const ADMISSIONS_EVIDENCE_REF = ".nimi/local/high-risk-admissions.yaml";
+
+function emptyAdmissionsEvidence() {
+  return {
+    admissions: [],
+    admission_rules: [
+      "explicit_manager_owned_decision_required_before_high_risk_local_evidence",
+      "mechanically_valid_admission_identity_required_before_high_risk_local_evidence",
+      "product_authority_change_requires_explicit_domain_spec_update",
+    ],
+    semantic_constraints: [
+      "local_admission_records_must_not_promote_operational_runtime_state",
+      "local_admission_records_must_not_be_used_as_product_authority",
+      "local_admission_records_must_use_iso_8601_utc_admitted_at",
+    ],
+  };
+}
 
 async function resolveProjectContainedPath(projectRoot, inputPath, artifactLabel) {
   const absolutePath = path.resolve(projectRoot, inputPath);
@@ -66,8 +82,8 @@ function translateAdmissionReason(reason) {
     ["attached packet_ref failed mechanical validation", "附加的 packet_ref 未通过机械校验"],
     ["attached packet_ref is missing packet_id or topic_id", "附加的 packet_ref 缺少 packet_id 或 topic_id"],
     ["Bootstrap or handoff validation is failing; repair doctor errors before semantic admission", "bootstrap 或 handoff 校验失败；请先修复 doctor 报错，再进行语义准入"],
-    ["Canonical admission requires the canonical tree under `.nimi/spec`", "canonical admission 需要 `.nimi/spec` 下的 canonical tree"],
-    ["Manager-owned local decision is ready for explicit canonical admission", "manager 拥有的本地 decision 已准备好进行显式 canonical admission"],
+    ["Local admission evidence requires the canonical tree under `.nimi/spec`", "local admission evidence 需要 `.nimi/spec` 下的 canonical tree"],
+    ["Manager-owned local decision is ready for explicit local admission evidence", "manager 拥有的本地 decision 已准备好写入显式 local admission evidence"],
   ]);
   return translations.get(reason) ?? reason;
 }
@@ -206,15 +222,19 @@ function validateImportedDecisionPayload(payload) {
   return { ok: true };
 }
 
-async function loadAdmissionsSpec(projectRoot, contract) {
-  const absolutePath = path.join(projectRoot, ADMISSIONS_SPEC_REF);
+async function loadAdmissionsEvidence(projectRoot, contract) {
+  const absolutePath = path.join(projectRoot, ADMISSIONS_EVIDENCE_REF);
   const text = await readTextIfFile(absolutePath);
 
   if (text === null) {
+    const parsed = emptyAdmissionsEvidence();
+    const validation = validateHighRiskAdmissionsSpec(parsed, contract);
     return {
-      ok: false,
+      ok: validation.ok,
       path: absolutePath,
-      reason: `cannot read ${ADMISSIONS_SPEC_REF}`,
+      parsed,
+      reason: validation.ok ? null : validation.reason,
+      initialized: true,
     };
   }
 
@@ -226,6 +246,7 @@ async function loadAdmissionsSpec(projectRoot, contract) {
     path: absolutePath,
     parsed,
     reason: validation.ok ? null : validation.reason,
+    initialized: false,
   };
 }
 
@@ -279,7 +300,7 @@ function upsertAdmissionRecord(existingAdmissions, record) {
   };
 }
 
-function evaluateAdmissionReadiness(doctorResult, admissionsSpec, packetIdentity) {
+function evaluateAdmissionReadiness(doctorResult, admissionsEvidence, packetIdentity) {
   if (!doctorResult.ok || !doctorResult.handoffReadiness.ok) {
     return {
       ok: false,
@@ -294,14 +315,14 @@ function evaluateAdmissionReadiness(doctorResult, admissionsSpec, packetIdentity
   if (!v2Ready && !legacyReady) {
     return {
       ok: false,
-      reason: "Canonical admission requires canonical_tree_ready with declared canonical files present",
+      reason: "Local admission evidence requires canonical_tree_ready with declared canonical files present",
     };
   }
 
-  if (!admissionsSpec.ok) {
+  if (!admissionsEvidence.ok) {
     return {
       ok: false,
-      reason: admissionsSpec.reason,
+      reason: admissionsEvidence.reason,
     };
   }
 
@@ -314,7 +335,7 @@ function evaluateAdmissionReadiness(doctorResult, admissionsSpec, packetIdentity
 
   return {
     ok: true,
-    reason: "Manager-owned local decision is ready for explicit canonical admission",
+    reason: "Manager-owned local decision is ready for explicit local admission evidence",
   };
 }
 
@@ -362,12 +383,12 @@ export async function buildHighRiskAdmissionPayload(projectRoot, options) {
       exitCode: 1,
       projectRoot,
       sourceDecisionRef: imported.path,
-      semanticTargetRef: ADMISSIONS_SPEC_REF,
-      artifactPath: path.join(projectRoot, ADMISSIONS_SPEC_REF),
+      semanticTargetRef: ADMISSIONS_EVIDENCE_REF,
+      artifactPath: path.join(projectRoot, ADMISSIONS_EVIDENCE_REF),
       skill: {
         id: "high_risk_execution",
       },
-      localOnly: false,
+      localOnly: true,
       admittedAt: options.admittedAt,
       admissionAction: "blocked",
       admissionRecord: null,
@@ -380,15 +401,15 @@ export async function buildHighRiskAdmissionPayload(projectRoot, options) {
         handoffReadiness: { ok: false },
         delegatedContracts: {},
       },
-      nextSpecYaml: null,
-      nextAction: `${HIGH_RISK_ADMISSION_CONTRACT_REF} must satisfy the package-owned canonical admission contract.`,
+      nextEvidenceYaml: null,
+      nextAction: `${HIGH_RISK_ADMISSION_CONTRACT_REF} must satisfy the package-owned local admission evidence contract.`,
     };
   }
 
   const doctorResult = await inspectDoctorState(projectRoot);
-  const admissionsSpec = await loadAdmissionsSpec(projectRoot, admissionsContract);
+  const admissionsEvidence = await loadAdmissionsEvidence(projectRoot, admissionsContract);
   const packetIdentity = await loadPacketIdentity(projectRoot, imported.payload.attachmentRefs.packet_ref);
-  const readiness = evaluateAdmissionReadiness(doctorResult, admissionsSpec, packetIdentity);
+  const readiness = evaluateAdmissionReadiness(doctorResult, admissionsEvidence, packetIdentity);
 
   const admissionRecord = packetIdentity.ok ? {
     topic_id: packetIdentity.topicId,
@@ -403,35 +424,35 @@ export async function buildHighRiskAdmissionPayload(projectRoot, options) {
   } : null;
 
   const nextAdmissions = readiness.ok
-    ? upsertAdmissionRecord(admissionsSpec.parsed.admissions, admissionRecord)
-    : { admissions: admissionsSpec.parsed?.admissions ?? [], action: "blocked" };
+    ? upsertAdmissionRecord(admissionsEvidence.parsed.admissions, admissionRecord)
+    : { admissions: admissionsEvidence.parsed?.admissions ?? [], action: "blocked" };
 
-  const nextSpecObject = admissionsSpec.ok ? {
+  const nextEvidenceObject = admissionsEvidence.ok ? {
     admissions: nextAdmissions.admissions,
-    admission_rules: admissionsSpec.parsed.admission_rules,
-    semantic_constraints: admissionsSpec.parsed.semantic_constraints,
+    admission_rules: admissionsEvidence.parsed.admission_rules,
+    semantic_constraints: admissionsEvidence.parsed.semantic_constraints,
   } : null;
-  const nextSpecValidation = nextSpecObject ? validateHighRiskAdmissionsSpec(nextSpecObject, admissionsContract) : { ok: false };
+  const nextEvidenceValidation = nextEvidenceObject ? validateHighRiskAdmissionsSpec(nextEvidenceObject, admissionsContract) : { ok: false };
 
   return {
     contractVersion: HIGH_RISK_ADMISSION_PAYLOAD_CONTRACT_VERSION,
-    ok: readiness.ok && nextSpecValidation.ok,
-    exitCode: readiness.ok && nextSpecValidation.ok ? 0 : 1,
+    ok: readiness.ok && nextEvidenceValidation.ok,
+    exitCode: readiness.ok && nextEvidenceValidation.ok ? 0 : 1,
     projectRoot,
     sourceDecisionRef: imported.path,
-    semanticTargetRef: ADMISSIONS_SPEC_REF,
-    artifactPath: path.join(projectRoot, ADMISSIONS_SPEC_REF),
+    semanticTargetRef: ADMISSIONS_EVIDENCE_REF,
+    artifactPath: path.join(projectRoot, ADMISSIONS_EVIDENCE_REF),
     skill: {
       id: "high_risk_execution",
     },
-    localOnly: false,
+    localOnly: true,
     admittedAt: options.admittedAt,
     admissionAction: nextAdmissions.action,
     admissionRecord,
-    readiness: readiness.ok && !nextSpecValidation.ok
+    readiness: readiness.ok && !nextEvidenceValidation.ok
       ? {
         ok: false,
-        reason: nextSpecValidation.reason,
+        reason: nextEvidenceValidation.reason,
       }
       : readiness,
     doctor: {
@@ -439,37 +460,37 @@ export async function buildHighRiskAdmissionPayload(projectRoot, options) {
       handoffReadiness: doctorResult.handoffReadiness,
       delegatedContracts: doctorResult.delegatedContracts,
     },
-    nextSpecYaml: nextSpecObject ? YAML.stringify(nextSpecObject) : null,
-    nextAction: readiness.ok && nextSpecValidation.ok
-      ? options.writeSpec
-        ? `Write canonical admission to ${ADMISSIONS_SPEC_REF}.`
-        : `Review the canonical admission preview or write it with --write-spec.`
-      : readiness.ok && !nextSpecValidation.ok
-        ? nextSpecValidation.reason
+    nextEvidenceYaml: nextEvidenceObject ? YAML.stringify(nextEvidenceObject) : null,
+    nextAction: readiness.ok && nextEvidenceValidation.ok
+      ? options.writeLocal
+        ? `Write local admission evidence to ${ADMISSIONS_EVIDENCE_REF}.`
+        : `Review the local admission evidence preview or write it with --write-local.`
+      : readiness.ok && !nextEvidenceValidation.ok
+        ? nextEvidenceValidation.reason
         : readiness.reason,
   };
 }
 
 export async function writeHighRiskAdmission(projectRoot, payload) {
-  if (!payload.ok || typeof payload.nextSpecYaml !== "string") {
+  if (!payload.ok || typeof payload.nextEvidenceYaml !== "string") {
     return;
   }
 
-  await writeFile(path.join(projectRoot, ADMISSIONS_SPEC_REF), payload.nextSpecYaml, "utf8");
+  await mkdir(path.dirname(path.join(projectRoot, ADMISSIONS_EVIDENCE_REF)), { recursive: true });
+  await writeFile(path.join(projectRoot, ADMISSIONS_EVIDENCE_REF), payload.nextEvidenceYaml, "utf8");
 }
 
 export function formatHighRiskAdmissionPayload(payload) {
   const nextAction = payload.ok
-    ? payload.nextAction.startsWith("Write canonical admission to ")
-      ? localize(payload.nextAction, `将 canonical admission 写入 ${payload.semanticTargetRef}。`)
+    ? payload.nextAction.startsWith("Write local admission evidence to ")
+      ? localize(payload.nextAction, `将 local admission evidence 写入 ${payload.semanticTargetRef}。`)
       : localize(
         payload.nextAction,
-        `检查 canonical admission 预览，或使用 ${styleCommand("--write-spec")} 将其写入。`,
+        `检查 local admission evidence 预览，或使用 ${styleCommand("--write-local")} 将其写入。`,
       )
     : localize(payload.nextAction, translateAdmissionReason(payload.nextAction)
       .replace(`${HIGH_RISK_ADMISSION_CONTRACT_REF} is missing or malformed`, `${HIGH_RISK_ADMISSION_CONTRACT_REF} 缺失或格式错误`)
-      .replace(`${HIGH_RISK_ADMISSION_CONTRACT_REF} must satisfy the package-owned canonical admission contract.`, `${HIGH_RISK_ADMISSION_CONTRACT_REF} 必须满足包内 canonical admission 契约。`)
-      .replace("cannot read .nimi/spec/high-risk-admissions.yaml", "无法读取 .nimi/spec/high-risk-admissions.yaml"));
+      .replace(`${HIGH_RISK_ADMISSION_CONTRACT_REF} must satisfy the package-owned local admission evidence contract.`, `${HIGH_RISK_ADMISSION_CONTRACT_REF} 必须满足包内 local admission evidence 契约。`));
   const lines = [
     styleHeading(`nimicoding admit-high-risk-decision: ${payload.projectRoot}`),
     "",
