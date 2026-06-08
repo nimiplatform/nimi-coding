@@ -1111,9 +1111,11 @@ test("audit-sweep plan derives exact implementation refs declared by spec author
           {
             rule_id: "B-ARCH-001",
             evidence: [
-              "nimi-backend/apps/api/src/main.ts",
-              "nimi-backend/prisma/schema.prisma",
-              "scripts/check-backend-import-boundary.ts",
+              "services/backend/src/main.ts",
+              "services/backend/db/schema.prisma",
+              "scripts/check-service-import-boundary.ts",
+              "@scope/package/ui/styles.css",
+              "./ui/styles.css",
               "backend/kernel/index.md",
               "tables/backend-rule-catalog.yaml",
               ".nimi/contracts/context-only.schema.yaml",
@@ -1124,13 +1126,13 @@ test("audit-sweep plan derives exact implementation refs declared by spec author
       }),
       "utf8",
     );
-    await mkdir(path.join(projectRoot, "nimi-backend", "apps", "api", "src"), { recursive: true });
-    await mkdir(path.join(projectRoot, "nimi-backend", "prisma"), { recursive: true });
+    await mkdir(path.join(projectRoot, "services", "backend", "src"), { recursive: true });
+    await mkdir(path.join(projectRoot, "services", "backend", "db"), { recursive: true });
     await mkdir(path.join(projectRoot, "scripts"), { recursive: true });
     await mkdir(path.join(projectRoot, ".openclaw"), { recursive: true });
-    await writeFile(path.join(projectRoot, "nimi-backend", "apps", "api", "src", "main.ts"), "export const main = true;\n", "utf8");
-    await writeFile(path.join(projectRoot, "nimi-backend", "prisma", "schema.prisma"), "model User { id String @id }\n", "utf8");
-    await writeFile(path.join(projectRoot, "scripts", "check-backend-import-boundary.ts"), "export const check = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "services", "backend", "src", "main.ts"), "export const main = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "services", "backend", "db", "schema.prisma"), "model User { id String @id }\n", "utf8");
+    await writeFile(path.join(projectRoot, "scripts", "check-service-import-boundary.ts"), "export const check = true;\n", "utf8");
     await writeFile(path.join(projectRoot, ".openclaw", "legacy.md"), "# Legacy\n", "utf8");
 
     const planResult = await captureRunCli([
@@ -1150,16 +1152,18 @@ test("audit-sweep plan derives exact implementation refs declared by spec author
     const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-declared-evidence-refs.yaml"), "utf8"));
     const backendChunk = plan.chunks.find((chunk) => chunk.authority_refs.includes(".nimi/spec/backend/kernel/tables/backend-rule-catalog.yaml"));
     assert.ok(backendChunk);
-    assert.ok(backendChunk.evidence_roots.includes("nimi-backend/apps/api/src/main.ts"));
-    assert.ok(backendChunk.evidence_roots.includes("nimi-backend/prisma/schema.prisma"));
-    assert.ok(backendChunk.evidence_roots.includes("scripts/check-backend-import-boundary.ts"));
+    assert.ok(backendChunk.evidence_roots.includes("services/backend/src/main.ts"));
+    assert.ok(backendChunk.evidence_roots.includes("services/backend/db/schema.prisma"));
+    assert.ok(backendChunk.evidence_roots.includes("scripts/check-service-import-boundary.ts"));
     assert.ok(!backendChunk.evidence_roots.includes(".nimi/contracts/context-only.schema.yaml"));
     assert.ok(!backendChunk.evidence_roots.includes(".openclaw/legacy.md"));
     assert.ok(!backendChunk.evidence_roots.includes("backend/kernel/index.md"));
     assert.ok(!backendChunk.evidence_roots.includes("tables/backend-rule-catalog.yaml"));
-    assert.ok(backendChunk.evidence_inventory.includes("nimi-backend/apps/api/src/main.ts"));
-    assert.ok(backendChunk.evidence_inventory.includes("nimi-backend/prisma/schema.prisma"));
-    assert.ok(backendChunk.evidence_inventory.includes("scripts/check-backend-import-boundary.ts"));
+    assert.ok(!backendChunk.evidence_roots.includes("@scope/package/ui/styles.css"));
+    assert.ok(!backendChunk.evidence_roots.includes("ui/styles.css"));
+    assert.ok(backendChunk.evidence_inventory.includes("services/backend/src/main.ts"));
+    assert.ok(backendChunk.evidence_inventory.includes("services/backend/db/schema.prisma"));
+    assert.ok(backendChunk.evidence_inventory.includes("scripts/check-service-import-boundary.ts"));
     assert.equal(plan.unmapped_evidence_files.length, 0);
 
     const validateResult = await captureRunCli([
@@ -1293,6 +1297,123 @@ test("audit-sweep plan maps authority-specific evidence roots from spec tables",
     assert.deepEqual(webChunk.evidence_root_admission_refs, [".nimi/spec/platform/kernel/tables/audit-evidence-roots.yaml#platform-web-release"]);
     assert.ok(webChunk.evidence_roots.includes("apps/web"));
     assert.ok(webChunk.evidence_inventory.includes("apps/web/src/app.ts"));
+  });
+});
+
+test("audit-sweep plan admits delegated external source projection authority", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "platform", "kernel", "tables"), { recursive: true });
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "external-api", "kernel", "tables"), { recursive: true });
+    await mkdir(path.join(projectRoot, "scripts"), { recursive: true });
+    await writeFile(path.join(projectRoot, "package.json"), "{\"scripts\":{\"check:external-api-projection\":\"node scripts/check-external-api-projection.mjs\"}}\n", "utf8");
+    await writeFile(path.join(projectRoot, "scripts", "check-external-api-projection.mjs"), "export const projectionGuard = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "scripts", "generate-external-api-spec.mjs"), "export const generateExternalApi = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, "scripts", "check-external-api-consistency.mjs"), "export const checkExternalApi = true;\n", "utf8");
+    await writeFile(path.join(projectRoot, ".nimi", "spec", "external-api", "README.md"), "# Host-Owned Projection Guide\n", "utf8");
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "external-api", "kernel", "client-contract.md"),
+      [
+        "# Client Contract",
+        "",
+        "Source implementation evidence lives at `services/api/src/handlers/client.ts`.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "external-api", "kernel", "tables", "client-contract.yaml"),
+      YAML.stringify({
+        version: 1,
+        contract_id: "external_api_client_contract",
+        sources: {
+          service: ["services/api/src/domain/client-service.ts"],
+        },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "platform", "kernel", "tables", "delegated-projection-admissions.yaml"),
+      YAML.stringify({
+        version: 1,
+        admissions: [
+          {
+            id: "external-api-source-projection",
+            admission_posture: "active",
+            owner_domain: "external-api",
+            authority_root: ".nimi/spec/external-api",
+            source_authority_root: "parent://source-repo/spec/external-api",
+            local_projection_evidence_roots: [
+              "package.json",
+              "scripts/check-external-api-projection.mjs",
+              "scripts/generate-external-api-spec.mjs",
+              "scripts/check-external-api-consistency.mjs",
+            ],
+            delegated_evidence_roots: [
+              "source-locator://",
+              "parent://source-repo/services/api",
+              "parent://source-repo/spec/external-api",
+            ],
+            delegated_declared_evidence_prefixes: ["services/api/"],
+            host_owned_relative_paths: ["README.md"],
+            required_verification_commands: [
+              "npm run check:external-api-projection",
+              "npm run check:external-api-consistency",
+            ],
+            source_rule: "P-PKG-009",
+          },
+        ],
+      }),
+      "utf8",
+    );
+
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      ".",
+      "--chunk-basis",
+      "spec",
+      "--sweep-id",
+      "audit-sweep-test-delegated-projection",
+      "--json",
+    ]);
+
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-delegated-projection.yaml"), "utf8"));
+    assert.deepEqual(plan.delegated_projection_admission_refs, [".nimi/spec/platform/kernel/tables/delegated-projection-admissions.yaml"]);
+    const projectionChunk = plan.chunks.find((chunk) => chunk.authority_kind === "delegated_projection");
+    assert.ok(projectionChunk);
+    assert.equal(projectionChunk.delegated_projection_id, "external-api-source-projection");
+    assert.equal(projectionChunk.source_authority_root, "parent://source-repo/spec/external-api");
+    assert.ok(projectionChunk.delegated_evidence_roots.includes("source-locator://"));
+    assert.ok(projectionChunk.authority_refs.includes(".nimi/spec/external-api/kernel/client-contract.md"));
+    assert.ok(projectionChunk.authority_refs.includes(".nimi/spec/external-api/kernel/tables/client-contract.yaml"));
+    assert.ok(!projectionChunk.authority_refs.includes(".nimi/spec/external-api/README.md"));
+    assert.deepEqual(projectionChunk.delegated_declared_evidence_prefixes, ["services/api"]);
+    assert.ok(projectionChunk.delegated_declared_evidence_refs.includes("services/api/src/handlers/client.ts"));
+    assert.ok(projectionChunk.delegated_declared_evidence_refs.includes("services/api/src/domain/client-service.ts"));
+    assert.equal(projectionChunk.declared_evidence_unresolved, undefined);
+    assert.ok(projectionChunk.evidence_inventory.includes("package.json"));
+    assert.ok(projectionChunk.evidence_inventory.includes("scripts/check-external-api-projection.mjs"));
+    assert.ok(projectionChunk.evidence_inventory.includes("scripts/generate-external-api-spec.mjs"));
+    assert.ok(projectionChunk.evidence_inventory.includes("scripts/check-external-api-consistency.mjs"));
+    assert.equal(plan.unmapped_evidence_files.length, 0);
+
+    const validateResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "validate",
+      "--sweep-id",
+      "audit-sweep-test-delegated-projection",
+      "--scope",
+      "plan",
+      "--json",
+    ]);
+    assert.equal(validateResult.exitCode, 0, validateResult.stdout);
   });
 });
 

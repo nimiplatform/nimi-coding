@@ -46,11 +46,17 @@ function looksLikeSpecAuthorityRelativeRef(normalized) {
 }
 
 function normalizeDeclaredEvidenceRef(value) {
-  const normalized = String(value ?? "")
+  const raw = String(value ?? "")
     .trim()
     .replace(/\\/g, "/")
-    .replace(/^\.\//, "")
     .replace(/[),.;:]+$/u, "");
+  if (!raw || raw.startsWith("../") || raw.includes("/../") || raw.startsWith("http:") || raw.startsWith("https:")) {
+    return null;
+  }
+  if (raw.startsWith("@") || raw.startsWith("./")) {
+    return null;
+  }
+  const normalized = raw.replace(/^\.\//, "");
   if (!normalized || normalized.startsWith("../") || normalized.includes("/../") || normalized.startsWith("http:") || normalized.startsWith("https:")) {
     return null;
   }
@@ -102,6 +108,37 @@ function candidateEvidenceRefsForDeclaredRef(declaredRef, evidenceRoots) {
   return [...new Set(candidates)].sort();
 }
 
+function normalizedRef(value) {
+  return String(value ?? "").replace(/\\/g, "/").replace(/\/$/, "");
+}
+
+function refInsideRoot(fileRef, rootRef) {
+  const root = normalizedRef(rootRef);
+  return Boolean(root) && (fileRef === root || fileRef.startsWith(`${root}/`));
+}
+
+function delegatedProjectionAdmissionForFile(fileRef, admissions = []) {
+  return admissions.find((admission) => {
+    if (!refInsideRoot(fileRef, admission.authority_root)) {
+      return false;
+    }
+    const relative = fileRef === admission.authority_root
+      ? ""
+      : fileRef.slice(admission.authority_root.length + 1);
+    return !(admission.host_owned_relative_paths ?? []).some((hostOwnedPath) => (
+      relative === hostOwnedPath || relative.startsWith(`${hostOwnedPath}/`)
+    ));
+  }) ?? null;
+}
+
+function declaredRefDelegated(ref, prefixes = []) {
+  const normalized = normalizedRef(ref);
+  return prefixes.some((prefix) => {
+    const normalizedPrefix = normalizedRef(prefix);
+    return normalizedPrefix && (normalized === normalizedPrefix || normalized.startsWith(`${normalizedPrefix}/`));
+  });
+}
+
 function extractDeclaredEvidenceRefs(text) {
   const refs = [];
   for (const match of String(text ?? "").matchAll(DECLARED_EVIDENCE_REF_PATTERN)) {
@@ -147,6 +184,74 @@ function extractModuleMapRefs(markdownText) {
   return [...new Set(refs)].sort();
 }
 
+function buildDelegatedProjectionChunk({
+  admission,
+  entries,
+  chunkIndex,
+  criteria,
+  authorityTextByRef,
+}) {
+  const authorityRefs = entries.map((entry) => entry.file_ref).sort();
+  const authorityText = authorityRefs
+    .map((authorityRef) => authorityTextByRef?.get(authorityRef) ?? "")
+    .join("\n");
+  const declaredEvidenceRefs = extractDeclaredEvidenceRefs(authorityText);
+  const delegatedDeclaredEvidenceRefs = declaredEvidenceRefs
+    .filter((ref) => declaredRefDelegated(ref, admission.delegated_declared_evidence_prefixes))
+    .sort();
+  const localDeclaredEvidenceRefs = declaredEvidenceRefs
+    .filter((ref) => !declaredRefDelegated(ref, admission.delegated_declared_evidence_prefixes))
+    .sort();
+  const evidenceRoots = [...new Set(admission.local_projection_evidence_roots ?? [])].sort();
+  const declaredEvidenceTargets = localDeclaredEvidenceRefs
+    .map((evidenceRef) => ({
+      source_path: evidenceRef,
+      candidates: candidateEvidenceRefsForDeclaredRef(evidenceRef, evidenceRoots),
+    }))
+    .filter((target) => target.candidates.length > 0);
+  return {
+    chunk_id: [
+      `chunk-${String(chunkIndex).padStart(3, "0")}`,
+      slugPart(admission.owner_domain),
+      "delegated-projection",
+      slugPart(admission.id),
+    ].join("-"),
+    state: "planned",
+    owner_domain: admission.owner_domain,
+    planning_basis: "spec_authority",
+    spec_surface: "delegated-projection",
+    criteria,
+    files: authorityRefs,
+    authority_refs: authorityRefs,
+    authority_kind: "delegated_projection",
+    delegated_projection_id: admission.id,
+    admission_ref: admission.admission_ref,
+    authority_root: admission.authority_root,
+    source_authority_root: admission.source_authority_root,
+    admitted_evidence_roots: evidenceRoots,
+    delegated_evidence_roots: admission.delegated_evidence_roots,
+    delegated_declared_evidence_prefixes: admission.delegated_declared_evidence_prefixes,
+    ...(delegatedDeclaredEvidenceRefs.length > 0 ? {
+      delegated_declared_evidence_refs: delegatedDeclaredEvidenceRefs,
+      declared_evidence_delegation: {
+        status: "delegated_to_source_authority",
+        delegated_ref_count: delegatedDeclaredEvidenceRefs.length,
+        source_authority_root: admission.source_authority_root,
+        delegated_evidence_roots: admission.delegated_evidence_roots,
+      },
+    } : {}),
+    ...(admission.required_verification_commands?.length > 0 ? {
+      required_verification_commands: admission.required_verification_commands,
+    } : {}),
+    ...(declaredEvidenceTargets.length > 0 ? {
+      declared_evidence_targets: declaredEvidenceTargets,
+    } : {}),
+    evidence_roots: evidenceRoots,
+    file_count: authorityRefs.length,
+    finding_count: 0,
+  };
+}
+
 function candidateEvidenceRefsForModuleMapPath(modulePath, evidenceRoots) {
   const normalized = String(modulePath ?? "").replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
   if (!normalized || normalized.startsWith("http:") || normalized.startsWith("https:")) {
@@ -181,6 +286,16 @@ function candidateEvidenceRefsForModuleMapPath(modulePath, evidenceRoots) {
 export function buildSpecChunks(includedInventory, options) {
   const sortedEntries = [...includedInventory].sort((left, right) => left.file_ref.localeCompare(right.file_ref));
   const includedRefs = new Set(sortedEntries.map((entry) => entry.file_ref));
+  const delegatedEntriesByAdmissionRef = new Map();
+  for (const entry of sortedEntries) {
+    const admission = delegatedProjectionAdmissionForFile(entry.file_ref, options.delegatedProjectionAdmissions);
+    if (!admission) {
+      continue;
+    }
+    const entries = delegatedEntriesByAdmissionRef.get(admission.admission_ref) ?? [];
+    entries.push(entry);
+    delegatedEntriesByAdmissionRef.set(admission.admission_ref, entries);
+  }
   const hostProjectionByHostRef = new Map();
   const hostProjectionsByPackageRef = new Map();
   for (const admission of options.packageAuthorityAdmissions ?? []) {
@@ -202,7 +317,24 @@ export function buildSpecChunks(includedInventory, options) {
   }
   let chunkIndex = 0;
   const chunks = [];
+  const emittedDelegatedAdmissions = new Set();
   for (const entry of sortedEntries) {
+    const delegatedAdmission = delegatedProjectionAdmissionForFile(entry.file_ref, options.delegatedProjectionAdmissions);
+    if (delegatedAdmission) {
+      if (emittedDelegatedAdmissions.has(delegatedAdmission.admission_ref)) {
+        continue;
+      }
+      emittedDelegatedAdmissions.add(delegatedAdmission.admission_ref);
+      chunkIndex += 1;
+      chunks.push(buildDelegatedProjectionChunk({
+        admission: delegatedAdmission,
+        entries: delegatedEntriesByAdmissionRef.get(delegatedAdmission.admission_ref) ?? [entry],
+        chunkIndex,
+        criteria: options.criteria,
+        authorityTextByRef: options.authorityTextByRef,
+      }));
+      continue;
+    }
     if (hostProjectionByHostRef.has(entry.file_ref)) {
       continue;
     }

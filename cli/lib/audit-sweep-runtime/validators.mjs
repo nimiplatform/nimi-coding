@@ -259,6 +259,40 @@ function validatePlanShape(plan, sweepId, checks) {
         ));
     });
     check(checks, "plan_spec_package_authority_admitted", packageAuthorityChunksOk, "package-local authority chunks are admitted through .nimi/spec package authority admissions");
+    const delegatedProjectionAdmissions = Array.isArray(plan.delegated_projection_admissions) ? plan.delegated_projection_admissions : [];
+    const delegatedAdmissionByRef = new Map(delegatedProjectionAdmissions
+      .filter((entry) => isPlainObject(entry) && nonEmptyString(entry.admission_ref))
+      .map((entry) => [entry.admission_ref, entry]));
+    const delegatedProjectionChunks = plan.chunks.filter((chunk) => chunk.authority_kind === "delegated_projection");
+    const delegatedProjectionChunksOk = delegatedProjectionChunks.every((chunk) => {
+      const admission = delegatedAdmissionByRef.get(chunk.admission_ref);
+      const prefixes = Array.isArray(admission?.delegated_declared_evidence_prefixes)
+        ? admission.delegated_declared_evidence_prefixes
+        : [];
+      const delegatedRefs = Array.isArray(chunk.delegated_declared_evidence_refs)
+        ? chunk.delegated_declared_evidence_refs
+        : [];
+      const delegatedRefsOk = delegatedRefs.every((ref) => prefixes.some((prefix) => (
+        String(ref) === String(prefix).replace(/\/$/u, "")
+        || String(ref).startsWith(`${String(prefix).replace(/\/$/u, "")}/`)
+      )));
+      return nonEmptyString(chunk.delegated_projection_id)
+        && nonEmptyString(chunk.admission_ref)
+        && nonEmptyString(chunk.authority_root)
+        && nonEmptyString(chunk.source_authority_root)
+        && admission
+        && admission.id === chunk.delegated_projection_id
+        && admission.authority_root === chunk.authority_root
+        && admission.source_authority_root === chunk.source_authority_root
+        && Array.isArray(admission.local_projection_evidence_roots)
+        && sortedArrayEquals(chunk.evidence_roots, admission.local_projection_evidence_roots)
+        && sortedArrayEquals(chunk.admitted_evidence_roots, admission.local_projection_evidence_roots)
+        && sortedArrayEquals(chunk.delegated_evidence_roots, admission.delegated_evidence_roots)
+        && sortedArrayEquals(chunk.delegated_declared_evidence_prefixes, admission.delegated_declared_evidence_prefixes)
+        && delegatedRefsOk
+        && chunk.authority_refs.every((fileRef) => String(fileRef).startsWith(`${chunk.authority_root}/`));
+    });
+    check(checks, "plan_spec_delegated_projection_authority_admitted", delegatedProjectionChunksOk, "delegated projection chunks are admitted through .nimi/spec delegated projection admissions");
     const evidenceRootAdmissionsOk = plan.chunks.every((chunk) => (
       !Array.isArray(chunk.evidence_root_admission_refs)
       || chunk.evidence_root_admission_refs.every((ref) => (

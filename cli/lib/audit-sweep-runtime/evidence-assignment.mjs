@@ -67,6 +67,9 @@ function chunkAcceptsEvidenceFile(chunk, fileRef) {
   if (surface === "spec-generation-audit" || surface === "high-risk-admissions" || surface === "package-meta" || surface === "package-root") {
     return true;
   }
+  if (surface === "delegated-projection") {
+    return true;
+  }
   return false;
 }
 

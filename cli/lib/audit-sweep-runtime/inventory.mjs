@@ -31,6 +31,7 @@ import {
   loadAppSliceAdmissions,
   loadAuditEvidenceRootAdmissions,
   loadAuditSweepProjectConfig,
+  loadDelegatedProjectionAdmissions,
   loadPackageAuthorityAdmissions,
 } from "./admissions.mjs";
 import { buildCoverageQuality } from "./coverage-quality.mjs";
@@ -441,6 +442,8 @@ export async function createAuditSweepPlan(projectRoot, options) {
   let appSliceAdmissions = [];
   let auditEvidenceRootAdmissions = [];
   let auditEvidenceRootAdmissionRefs = [];
+  let delegatedProjectionAdmissions = [];
+  let delegatedProjectionAdmissionRefs = [];
   let packageAuthorityAdmissions = [];
   let packageAuthorityAdmissionRefs = [];
   if (chunkBasis.basis === "spec") {
@@ -455,6 +458,12 @@ export async function createAuditSweepPlan(projectRoot, options) {
     }
     auditEvidenceRootAdmissions = loadedEvidenceRootAdmissions.admissions;
     auditEvidenceRootAdmissionRefs = loadedEvidenceRootAdmissions.tableRefs;
+    const loadedDelegatedProjectionAdmissions = await loadDelegatedProjectionAdmissions(projectRoot, listGitFiles, listFallbackFiles);
+    if (!loadedDelegatedProjectionAdmissions.ok) {
+      return inputError(loadedDelegatedProjectionAdmissions.error);
+    }
+    delegatedProjectionAdmissions = loadedDelegatedProjectionAdmissions.admissions;
+    delegatedProjectionAdmissionRefs = loadedDelegatedProjectionAdmissions.tableRefs;
     const loadedPackageAuthorityAdmissions = await loadPackageAuthorityAdmissions(projectRoot, listGitFiles, listFallbackFiles);
     if (!loadedPackageAuthorityAdmissions.ok) {
       return inputError(loadedPackageAuthorityAdmissions.error);
@@ -513,7 +522,7 @@ export async function createAuditSweepPlan(projectRoot, options) {
     }
   }
   let chunks = chunkBasis.basis === "spec"
-    ? buildSpecChunks(includedInventory, { criteria, targetRootRef, appSliceAdmissions, auditEvidenceRootAdmissions, packageAuthorityAdmissions, authorityTextByRef })
+    ? buildSpecChunks(includedInventory, { criteria, targetRootRef, appSliceAdmissions, auditEvidenceRootAdmissions, delegatedProjectionAdmissions, packageAuthorityAdmissions, authorityTextByRef })
     : buildFileChunks(includedInventory, { criteria, maxFilesPerChunk });
   let evidenceInventory = [];
   let unmappedEvidenceFiles = [];
@@ -588,6 +597,22 @@ export async function createAuditSweepPlan(projectRoot, options) {
     } : {}),
     ...(chunkBasis.basis === "spec" && auditEvidenceRootAdmissionRefs.length > 0 ? {
       audit_evidence_root_refs: auditEvidenceRootAdmissionRefs,
+    } : {}),
+    ...(chunkBasis.basis === "spec" && delegatedProjectionAdmissions.length > 0 ? {
+      delegated_projection_admission_refs: delegatedProjectionAdmissionRefs,
+      delegated_projection_admissions: delegatedProjectionAdmissions.map((admission) => ({
+        id: admission.id,
+        owner_domain: admission.owner_domain,
+        status: admission.status,
+        authority_root: admission.authority_root,
+        source_authority_root: admission.source_authority_root,
+        local_projection_evidence_roots: admission.local_projection_evidence_roots,
+        delegated_evidence_roots: admission.delegated_evidence_roots,
+        delegated_declared_evidence_prefixes: admission.delegated_declared_evidence_prefixes,
+        host_owned_relative_paths: admission.host_owned_relative_paths,
+        required_verification_commands: admission.required_verification_commands,
+        admission_ref: admission.admission_ref,
+      })),
     } : {}),
     ...(chunkBasis.basis === "spec" && packageAuthorityAdmissions.length > 0 ? {
       package_authority_admission_refs: packageAuthorityAdmissionRefs,
@@ -669,11 +694,18 @@ export async function createAuditSweepPlan(projectRoot, options) {
       ...(chunk.authority_kind ? { authority_kind: chunk.authority_kind } : {}),
       ...(chunk.app_id ? { app_id: chunk.app_id } : {}),
       ...(chunk.package_authority_id ? { package_authority_id: chunk.package_authority_id } : {}),
+      ...(chunk.delegated_projection_id ? { delegated_projection_id: chunk.delegated_projection_id } : {}),
       ...(chunk.admission_ref ? { admission_ref: chunk.admission_ref } : {}),
       ...(chunk.authority_root ? { authority_root: chunk.authority_root } : {}),
+      ...(chunk.source_authority_root ? { source_authority_root: chunk.source_authority_root } : {}),
       ...(chunk.evidence_root_admission_refs ? { evidence_root_admission_refs: chunk.evidence_root_admission_refs } : {}),
       ...(chunk.admitted_evidence_roots ? { admitted_evidence_roots: chunk.admitted_evidence_roots } : {}),
       ...(chunk.host_authority_projection_refs ? { host_authority_projection_refs: chunk.host_authority_projection_refs } : {}),
+      ...(chunk.delegated_evidence_roots ? { delegated_evidence_roots: chunk.delegated_evidence_roots } : {}),
+      ...(chunk.delegated_declared_evidence_prefixes ? { delegated_declared_evidence_prefixes: chunk.delegated_declared_evidence_prefixes } : {}),
+      ...(chunk.delegated_declared_evidence_refs ? { delegated_declared_evidence_refs: chunk.delegated_declared_evidence_refs } : {}),
+      ...(chunk.declared_evidence_delegation ? { declared_evidence_delegation: chunk.declared_evidence_delegation } : {}),
+      ...(chunk.required_verification_commands ? { required_verification_commands: chunk.required_verification_commands } : {}),
       ...(chunk.declared_evidence_targets ? { declared_evidence_targets: chunk.declared_evidence_targets } : {}),
       ...(chunk.evidence_roots ? { evidence_roots: chunk.evidence_roots } : {}),
       ...(chunk.declared_evidence_unresolved ? { declared_evidence_unresolved: chunk.declared_evidence_unresolved } : {}),

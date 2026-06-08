@@ -4,6 +4,19 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.7
+
+- Added delegated projection admissions for spec-authority sweeps so a host
+  `.nimi/spec/**` subtree projected from a parent or external source authority
+  can audit host-local projection evidence while delegating source-owned
+  implementation refs through an explicit boundary.
+- Kept delegated projections as audit modeling only: the CLI records and
+  validates source-authority boundaries, but does not read, sync, rewrite, or
+  mutate parent/external source repositories.
+- Ignored npm package/import specifiers and explicit `./` relative refs when
+  deriving declared evidence targets, so package subpaths and YAML fragment refs
+  do not get promoted into project-local evidence paths.
+
 ## 0.2.6
 
 - Hard-cut high-risk admission records out of active `.nimi/spec/**`

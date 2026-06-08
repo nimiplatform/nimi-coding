@@ -9,6 +9,7 @@ import { pathExists } from "../fs-helpers.mjs";
 export const AUDIT_SWEEP_PROJECT_CONFIG_REF = ".nimi/config/audit-sweep.yaml";
 export const APP_SLICE_ADMISSION_REF = ".nimi/spec/platform/kernel/tables/app-slice-admissions.yaml";
 const AUDIT_EVIDENCE_ROOT_TABLE_BASENAME = "audit-evidence-roots.yaml";
+const DELEGATED_PROJECTION_ADMISSION_BASENAME = "delegated-projection-admissions.yaml";
 const PACKAGE_AUTHORITY_ADMISSION_BASENAME = "package-authority-admissions.yaml";
 
 export function refInsideRoot(fileRef, rootRef) {
@@ -21,6 +22,32 @@ function safeProjectRef(value) {
     && value.trim().length > 0
     && !path.isAbsolute(value)
     && !value.split("/").includes("..");
+}
+
+function normalizeProjectRef(value) {
+  const normalized = String(value ?? "").trim().replace(/\\/g, "/");
+  if (/^[a-z][a-z0-9+.-]*:\/\/$/iu.test(normalized)) {
+    return normalized;
+  }
+  return normalized.replace(/\/$/, "");
+}
+
+function activePosture(row) {
+  return String(row?.status ?? row?.admission_posture ?? "").trim();
+}
+
+function safeProjectionSourceRef(value) {
+  const normalized = normalizeProjectRef(value);
+  return normalized.startsWith("parent://")
+    || normalized.startsWith("package://")
+    || safeProjectRef(normalized);
+}
+
+function safeRelativePath(value) {
+  const normalized = normalizeProjectRef(value);
+  return normalized.length > 0
+    && !path.isAbsolute(normalized)
+    && !normalized.split("/").includes("..");
 }
 
 export async function loadAuditSweepProjectConfig(projectRoot) {
@@ -234,6 +261,97 @@ export async function loadAuditEvidenceRootAdmissions(projectRoot, listGitFiles,
         authority_refs: authorityRefs,
         evidence_roots: evidenceRoots,
         admission_ref: `${tableRef}#${id}`,
+      });
+    }
+  }
+
+  return { ok: true, tableRefs, admissions };
+}
+
+export async function loadDelegatedProjectionAdmissions(projectRoot, listGitFiles, listFallbackFiles) {
+  const tableRefs = await listSpecTableRefs(projectRoot, DELEGATED_PROJECTION_ADMISSION_BASENAME, listGitFiles, listFallbackFiles);
+  if (!tableRefs) {
+    return { ok: true, tableRefs: [], admissions: [] };
+  }
+  const admissions = [];
+  const seenIds = new Set();
+
+  for (const tableRef of tableRefs) {
+    let parsed;
+    try {
+      parsed = YAML.parse(await readFile(artifactPath(projectRoot, tableRef), "utf8"));
+    } catch (error) {
+      return {
+        ok: false,
+        error: `nimicoding sweep audit refused: ${tableRef} must contain valid YAML (${error.message}).\n`,
+      };
+    }
+    const rows = Array.isArray(parsed?.admissions) ? parsed.admissions : null;
+    if (!rows) {
+      return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} must declare admissions as an array.\n` };
+    }
+    for (const row of rows) {
+      const id = String(row?.id ?? "").trim();
+      const posture = activePosture(row);
+      const ownerDomain = String(row?.owner_domain ?? "").trim();
+      const authorityRoot = normalizeProjectRef(row?.authority_root);
+      const sourceAuthorityRoot = normalizeProjectRef(row?.source_authority_root);
+      const localProjectionEvidenceRoots = Array.isArray(row?.local_projection_evidence_roots)
+        ? row.local_projection_evidence_roots.map(normalizeProjectRef).filter(Boolean)
+        : null;
+      const delegatedEvidenceRoots = Array.isArray(row?.delegated_evidence_roots)
+        ? row.delegated_evidence_roots.map(normalizeProjectRef).filter(Boolean)
+        : null;
+      const delegatedDeclaredEvidencePrefixes = Array.isArray(row?.delegated_declared_evidence_prefixes)
+        ? row.delegated_declared_evidence_prefixes.map(normalizeProjectRef).filter(Boolean)
+        : [];
+      const hostOwnedRelativePaths = Array.isArray(row?.host_owned_relative_paths)
+        ? row.host_owned_relative_paths.map(normalizeProjectRef).filter(Boolean)
+        : [];
+      const requiredVerificationCommands = Array.isArray(row?.required_verification_commands)
+        ? row.required_verification_commands.map((entry) => String(entry ?? "").trim()).filter(Boolean)
+        : [];
+      const admissionKey = `${tableRef}#${id}`;
+      if (!id || seenIds.has(admissionKey)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} has missing or duplicate delegated projection id.\n` };
+      }
+      seenIds.add(admissionKey);
+      if (posture !== "active") {
+        continue;
+      }
+      if (!ownerDomain || !safeProjectRef(authorityRoot) || !authorityRoot.startsWith(".nimi/spec/")) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid owner_domain or authority_root.\n` };
+      }
+      if (!safeProjectionSourceRef(sourceAuthorityRoot)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid source_authority_root.\n` };
+      }
+      if (!localProjectionEvidenceRoots?.length || !localProjectionEvidenceRoots.every((rootRef) => safeProjectRef(rootRef) && !rootRef.startsWith(".nimi/spec/"))) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid local_projection_evidence_roots.\n` };
+      }
+      if (!delegatedEvidenceRoots?.length || !delegatedEvidenceRoots.every(safeProjectionSourceRef)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid delegated_evidence_roots.\n` };
+      }
+      if (delegatedDeclaredEvidencePrefixes.length === 0 || !delegatedDeclaredEvidencePrefixes.every(safeRelativePath)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} must declare delegated_declared_evidence_prefixes.\n` };
+      }
+      if (!hostOwnedRelativePaths.every(safeRelativePath)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid host_owned_relative_paths.\n` };
+      }
+      if (!requiredVerificationCommands.every((command) => command.length > 0)) {
+        return { ok: false, error: `nimicoding sweep audit refused: ${tableRef} ${id} has invalid required_verification_commands.\n` };
+      }
+      admissions.push({
+        id,
+        owner_domain: ownerDomain,
+        status: posture,
+        authority_root: authorityRoot,
+        source_authority_root: sourceAuthorityRoot,
+        local_projection_evidence_roots: localProjectionEvidenceRoots,
+        delegated_evidence_roots: delegatedEvidenceRoots,
+        delegated_declared_evidence_prefixes: delegatedDeclaredEvidencePrefixes,
+        host_owned_relative_paths: hostOwnedRelativePaths,
+        required_verification_commands: requiredVerificationCommands,
+        admission_ref: admissionKey,
       });
     }
   }
