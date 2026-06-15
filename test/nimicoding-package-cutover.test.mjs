@@ -273,7 +273,7 @@ test("readme topic examples stay aligned with current CLI argument shape", async
   const packageReadmeZh = await readFile(path.join(repoRoot, "README.zh-CN.md"), "utf8");
   const docs = `${packageReadme}\n${packageReadmeZh}`;
 
-  assert.match(docs, /nimicoding topic wave add <topic-id> <wave-id> <slug>\s+\\\n\s+--goal <text> --owner-domain <domain>/);
+  assert.match(docs, /nimicoding topic wave add <topic-id> <wave-id> <slug>\s+\\\r?\n\s+--goal <text> --owner-domain <domain>/);
   assert.match(docs, /nimicoding topic packet freeze <topic-id> --from <draft-path>/);
   assert.doesNotMatch(docs, /nimicoding topic wave add <topic-id> --owner <domain> --goal <text>/);
   assert.doesNotMatch(docs, /nimicoding topic packet freeze <topic-id> --wave <wave-id>/);

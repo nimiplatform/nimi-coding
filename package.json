@@ -1,6 +1,6 @@
 {
   "name": "@nimiplatform/nimi-coding",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": false,
   "description": "AI-native coding governance toolkit for bootstrapping .nimi/** into arbitrary projects.",
   "license": "MIT",
@@ -58,8 +58,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "NIMICODING_LANG=en NO_COLOR=1 node --test",
-    "check:ci": "pnpm test && pnpm check:pack && node ./bin/nimicoding.mjs --help >/dev/null && node ./bin/nimicoding.mjs --version >/dev/null",
+    "test": "node ./cli/dev/run-suite.mjs",
+    "check:ci": "pnpm test && pnpm check:pack && node ./cli/dev/run-cli-smoke.mjs",
     "check:pack": "npm pack --dry-run"
   }
 }

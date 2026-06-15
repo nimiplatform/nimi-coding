@@ -192,6 +192,16 @@ function terminateProcess(child, signal) {
   }
 }
 
+function executableInvocation(executable, args) {
+  if (
+    process.platform === "win32" &&
+    [".cjs", ".js", ".mjs"].includes(path.extname(executable).toLowerCase())
+  ) {
+    return { command: process.execPath, args: [executable, ...args] };
+  }
+  return { command: executable, args };
+}
+
 const CLAUDE_AUDIT_OUTPUT_SCHEMA = JSON.stringify({
   type: "object",
   properties: {
@@ -210,7 +220,7 @@ function runClaudeExec({ projectRoot, claudeBin, rawOutputPath, prompt, timeoutM
     let timedOut = false;
     let settled = false;
     let killTimer = null;
-    const child = spawn(claudeBin, [
+    const invocation = executableInvocation(claudeBin, [
       "-p",
       "--output-format", "json",
       "--permission-mode", "bypassPermissions",
@@ -219,7 +229,8 @@ function runClaudeExec({ projectRoot, claudeBin, rawOutputPath, prompt, timeoutM
       "--no-session-persistence",
       "--add-dir", projectRoot,
       "--json-schema", CLAUDE_AUDIT_OUTPUT_SCHEMA,
-    ], {
+    ]);
+    const child = spawn(invocation.command, invocation.args, {
       cwd: projectRoot,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",

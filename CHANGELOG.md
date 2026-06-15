@@ -4,6 +4,18 @@ All notable changes to `@nimiplatform/nimi-coding` are tracked here.
 
 This project follows semantic versioning for published npm releases.
 
+## 0.2.8
+
+- Fixed Windows audit-sweep execution for JavaScript auditor entrypoints by
+  invoking `.cjs`, `.js`, and `.mjs` binaries through the active Node runtime
+  before passing CLI arguments to Codex or Claude auditors.
+- Hardened post-update proof lineage selection by ordering worker prompts with
+  nanosecond file timestamps and explicit dispatch-time mtimes, so rapid
+  remediation dispatches do not collapse into ambiguous or stale prompt
+  lineage.
+- Made README example alignment tolerant of CRLF checkouts without relaxing the
+  documented topic command shape.
+
 ## 0.2.7
 
 - Added delegated projection admissions for spec-authority sweeps so a host

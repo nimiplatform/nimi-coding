@@ -183,15 +183,31 @@ async function latestWorkerPromptPacketId(topicDir, packetEntries) {
     if (!packetIds.has(packetId)) continue;
     const promptPath = path.join(topicDir, entry.name);
     try {
-      const promptStat = await stat(promptPath);
-      prompts.push({ packetId, mtimeMs: promptStat.mtimeMs, promptRefName: entry.name });
+      const promptStat = await stat(promptPath, { bigint: true });
+      prompts.push({
+        packetId,
+        mtimeNs: promptStat.mtimeNs,
+        ctimeNs: promptStat.ctimeNs,
+        birthtimeNs: promptStat.birthtimeNs,
+        promptRefName: entry.name,
+      });
     } catch {
       return null;
     }
   }
   if (prompts.length === 0) return null;
-  prompts.sort((left, right) => right.mtimeMs - left.mtimeMs || left.promptRefName.localeCompare(right.promptRefName));
-  if (prompts.length > 1 && prompts[0].mtimeMs === prompts[1].mtimeMs) return { ambiguous: true };
+  prompts.sort((left, right) => (
+    Number(right.mtimeNs - left.mtimeNs)
+    || Number(right.ctimeNs - left.ctimeNs)
+    || Number(right.birthtimeNs - left.birthtimeNs)
+    || left.promptRefName.localeCompare(right.promptRefName)
+  ));
+  if (
+    prompts.length > 1
+    && prompts[0].mtimeNs === prompts[1].mtimeNs
+    && prompts[0].ctimeNs === prompts[1].ctimeNs
+    && prompts[0].birthtimeNs === prompts[1].birthtimeNs
+  ) return { ambiguous: true };
   return prompts[0];
 }
 

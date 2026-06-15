@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 
@@ -35,6 +35,22 @@ import {
 export function promptFilename(packetId, role) {
   return `prompt-${packetId}-${role}.md`;
 }
+
+async function nextPromptMtime(topicDir, role) {
+  let rolePromptCount = 0;
+  try {
+    const entries = await readdir(topicDir, { withFileTypes: true });
+    rolePromptCount = entries.filter((entry) => (
+      entry.isFile()
+      && entry.name.startsWith("prompt-")
+      && entry.name.endsWith(`-${role}.md`)
+    )).length;
+  } catch {
+    rolePromptCount = 0;
+  }
+  return new Date(Date.now() + rolePromptCount + 1);
+}
+
 export async function dispatchTopicPacket(projectRoot, input, packetId, role) {
   const loaded = await loadTopicPacket(projectRoot, input, packetId);
   if (!loaded.ok) return loaded;
@@ -49,8 +65,10 @@ export async function dispatchTopicPacket(projectRoot, input, packetId, role) {
   if (!["candidate", "admitted", "preflight", "dispatched"].includes(loaded.packet.status))
     return { ok: false, error: `Packet is not dispatchable from status ${loaded.packet.status}` };
   const promptPath = path.join(loaded.topicDir, promptFilename(packetId, role));
+  const promptMtime = await nextPromptMtime(loaded.topicDir, role);
   return (
     await writeFile(promptPath, buildDispatchPrompt(loaded.packet, loaded.topicId, role), "utf8"),
+    await utimes(promptPath, promptMtime, promptMtime),
     (loaded.packet.status = "dispatched"),
     await writeFile(loaded.packetPath, packetMarkdown(loaded.packet), "utf8"),
     role === "worker" &&

@@ -102,13 +102,23 @@ function terminateProcess(child, signal) {
   }
 }
 
+function executableInvocation(executable, args) {
+  if (
+    process.platform === "win32" &&
+    [".cjs", ".js", ".mjs"].includes(path.extname(executable).toLowerCase())
+  ) {
+    return { command: process.execPath, args: [executable, ...args] };
+  }
+  return { command: executable, args };
+}
+
 function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs }) {
   return new Promise((resolve) => {
     const boundedTimeoutMs = Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_CODEX_TIMEOUT_MS;
     let timedOut = false;
     let settled = false;
     let killTimer = null;
-    const child = spawn(codexBin, [
+    const invocation = executableInvocation(codexBin, [
       "exec",
       "-C",
       projectRoot,
@@ -117,7 +127,8 @@ function runCodexExec({ projectRoot, codexBin, rawOutputPath, prompt, timeoutMs 
       "--output-last-message",
       rawOutputPath,
       "-",
-    ], {
+    ]);
+    const child = spawn(invocation.command, invocation.args, {
       cwd: projectRoot,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
