@@ -1,6 +1,8 @@
+import { statSync } from "node:fs";
 import path from "node:path";
 
 import { specSurfaceForFile } from "./admissions.mjs";
+import { isGeneratedRuntimeDeclaredTarget } from "./generated-runtime-targets.mjs";
 
 function evidenceRootsForSpecOwner(ownerDomain, targetRootRef) {
   if (targetRootRef !== ".") {
@@ -150,6 +152,58 @@ function extractDeclaredEvidenceRefs(text) {
   return [...new Set(refs)].sort();
 }
 
+function declaredGeneratedTargetsForRefs(refs) {
+  return [...new Set((refs ?? [])
+    .map((ref) => normalizedRef(ref))
+    .filter((ref) => ref && isGeneratedRuntimeDeclaredTarget(ref)))]
+    .sort();
+}
+
+function normalizeExplicitPackageRef(value) {
+  const normalized = String(value ?? "").trim().replace(/\\/g, "/").replace(/\/+$/u, "");
+  const parts = normalized.split("/");
+  if (parts[0] !== "packages" || parts.length < 2) {
+    return null;
+  }
+  if (parts.some((part) => !part || part === "." || part === "..")) {
+    return null;
+  }
+  return parts.join("/");
+}
+
+function explicitPackageRefsFromMarkdown(content) {
+  const refs = [];
+  for (const match of String(content ?? "").matchAll(/`(packages\/[^`]+)`/gu)) {
+    const normalized = normalizeExplicitPackageRef(match[1]);
+    if (!normalized) {
+      continue;
+    }
+    refs.push(normalized);
+  }
+  return [...new Set(refs)].sort();
+}
+
+function projectDirectoryExists(projectRoot, ref) {
+  try {
+    return statSync(path.join(projectRoot, ...ref.split("/"))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isWorkerAuthority(surface, authorityRefs) {
+  return surface.ownerDomain === "workers"
+    || authorityRefs.some((authorityRef) => authorityRef === ".nimi/spec/workers" || authorityRef.startsWith(".nimi/spec/workers/"));
+}
+
+function existingWorkerPackageRefs({ authorityText, authorityRefs, surface, projectRoot }) {
+  if (!isWorkerAuthority(surface, authorityRefs)) {
+    return [];
+  }
+  return explicitPackageRefsFromMarkdown(authorityText)
+    .filter((packageRef) => projectDirectoryExists(projectRoot, packageRef));
+}
+
 function slugPart(value) {
   return String(value)
     .replace(/[^a-zA-Z0-9]+/g, "-")
@@ -203,6 +257,7 @@ function buildDelegatedProjectionChunk({
     .filter((ref) => !declaredRefDelegated(ref, admission.delegated_declared_evidence_prefixes))
     .sort();
   const evidenceRoots = [...new Set(admission.local_projection_evidence_roots ?? [])].sort();
+  const declaredGeneratedTargets = declaredGeneratedTargetsForRefs(localDeclaredEvidenceRefs);
   const declaredEvidenceTargets = localDeclaredEvidenceRefs
     .map((evidenceRef) => ({
       source_path: evidenceRef,
@@ -245,6 +300,9 @@ function buildDelegatedProjectionChunk({
     } : {}),
     ...(declaredEvidenceTargets.length > 0 ? {
       declared_evidence_targets: declaredEvidenceTargets,
+    } : {}),
+    ...(declaredGeneratedTargets.length > 0 ? {
+      declared_generated_targets: declaredGeneratedTargets,
     } : {}),
     evidence_roots: evidenceRoots,
     file_count: authorityRefs.length,
@@ -356,6 +414,15 @@ export function buildSpecChunks(includedInventory, options) {
     const declaredEvidenceRefs = packageAdmission || appAdmission
       ? []
       : extractDeclaredEvidenceRefs(authorityText);
+    const declaredGeneratedTargets = declaredGeneratedTargetsForRefs(declaredEvidenceRefs);
+    const explicitPackageEvidenceRoots = packageAdmission || appAdmission
+      ? []
+      : existingWorkerPackageRefs({
+        authorityText,
+        authorityRefs,
+        surface,
+        projectRoot: options.projectRoot ?? process.cwd(),
+      });
     const evidenceRoots = packageAdmission
       ? packageAdmission.evidence_roots
       : appAdmission
@@ -363,12 +430,17 @@ export function buildSpecChunks(includedInventory, options) {
       : [...new Set([
         ...evidenceRootsForSpecOwner(surface.ownerDomain, options.targetRootRef),
         ...declaredEvidenceRefs,
+        ...explicitPackageEvidenceRoots,
         ...admittedEvidenceRoots,
       ])].sort();
     const moduleMapRefs = surface.surface === "domain-guides" || surface.surface === "app-domain-guides"
       ? extractModuleMapRefs(options.authorityTextByRef?.get(entry.file_ref) ?? "")
       : [];
     const declaredEvidenceTargets = [
+      ...explicitPackageEvidenceRoots.map((packageRef) => ({
+        source_path: packageRef,
+        candidates: [packageRef],
+      })),
       ...moduleMapRefs.map((moduleRef) => ({
         source_path: moduleRef,
         candidates: candidateEvidenceRefsForModuleMapPath(moduleRef, evidenceRoots),
@@ -415,6 +487,9 @@ export function buildSpecChunks(includedInventory, options) {
       } : {}),
       ...(declaredEvidenceTargets.length > 0 ? {
         declared_evidence_targets: declaredEvidenceTargets,
+      } : {}),
+      ...(declaredGeneratedTargets.length > 0 ? {
+        declared_generated_targets: declaredGeneratedTargets,
       } : {}),
       evidence_roots: evidenceRoots,
       file_count: authorityRefs.length,

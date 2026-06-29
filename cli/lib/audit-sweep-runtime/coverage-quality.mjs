@@ -1,8 +1,76 @@
+import { isGeneratedRuntimeDeclaredTarget } from "./generated-runtime-targets.mjs";
+
 export const COVERAGE_SCOPE_LABEL = "declared_authority_and_evidence_inventory";
 export const FILE_INVENTORY_SCOPE_LABEL = "file_inventory";
 
+const IMPLEMENTATION_EVIDENCE_EXTENSIONS = new Set([
+  ".cjs",
+  ".go",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".prisma",
+  ".proto",
+  ".py",
+  ".rs",
+  ".ts",
+  ".tsx",
+]);
+
 function makeDiagnostic(id, message, details = {}) {
   return { id, message, ...details };
+}
+
+function normalizedRef(value) {
+  return String(value ?? "").trim().replace(/\\/g, "/").replace(/\/+$/u, "");
+}
+
+function extensionOfRef(ref) {
+  const basename = normalizedRef(ref).split("/").pop() ?? "";
+  const index = basename.lastIndexOf(".");
+  return index >= 0 ? basename.slice(index).toLowerCase() : "";
+}
+
+function declaredTargetRef(target) {
+  if (typeof target === "string") {
+    return normalizedRef(target);
+  }
+  return normalizedRef(target?.source_path ?? target?.target ?? target?.ref);
+}
+
+function implementationEvidenceRef(ref) {
+  const normalized = normalizedRef(ref);
+  if (!normalized || normalized.startsWith(".nimi/spec/") || normalized.startsWith(".nimi/local/")) {
+    return false;
+  }
+  return IMPLEMENTATION_EVIDENCE_EXTENSIONS.has(extensionOfRef(normalized));
+}
+
+function chunkHasImplementationEvidence(chunk) {
+  return (Array.isArray(chunk.evidence_inventory) ? chunk.evidence_inventory : [])
+    .some(implementationEvidenceRef);
+}
+
+function declaredGeneratedTargets(chunk) {
+  return new Set((Array.isArray(chunk.declared_generated_targets) ? chunk.declared_generated_targets : [])
+    .map(declaredTargetRef)
+    .filter(Boolean));
+}
+
+export function unresolvedDeclaredEvidenceTargets(chunk) {
+  if (!Array.isArray(chunk.declared_evidence_unresolved)) {
+    return [];
+  }
+  const generatedTargets = declaredGeneratedTargets(chunk);
+  const hasImplementationEvidence = chunkHasImplementationEvidence(chunk);
+  return chunk.declared_evidence_unresolved.filter((target) => {
+    const ref = declaredTargetRef(target);
+    return !(
+      isGeneratedRuntimeDeclaredTarget(ref)
+      && generatedTargets.has(ref)
+      && hasImplementationEvidence
+    );
+  });
 }
 
 function ownerDomainCoverage(chunks) {
@@ -96,7 +164,7 @@ export function buildCoverageQuality(plan, chunks, coverage = plan.coverage ?? {
   }
 
   const unresolvedChunks = chunks
-    .filter((chunk) => Array.isArray(chunk.declared_evidence_unresolved) && chunk.declared_evidence_unresolved.length > 0)
+    .filter((chunk) => unresolvedDeclaredEvidenceTargets(chunk).length > 0)
     .map((chunk) => chunk.chunk_id);
   if (unresolvedChunks.length > 0) {
     blockers.push(makeDiagnostic("declared_evidence_target_unresolved", "Declared evidence targets remain unresolved.", {

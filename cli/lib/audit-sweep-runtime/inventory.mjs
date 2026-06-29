@@ -522,7 +522,7 @@ export async function createAuditSweepPlan(projectRoot, options) {
     }
   }
   let chunks = chunkBasis.basis === "spec"
-    ? buildSpecChunks(includedInventory, { criteria, targetRootRef, appSliceAdmissions, auditEvidenceRootAdmissions, delegatedProjectionAdmissions, packageAuthorityAdmissions, authorityTextByRef })
+    ? buildSpecChunks(includedInventory, { criteria, targetRootRef, projectRoot, appSliceAdmissions, auditEvidenceRootAdmissions, delegatedProjectionAdmissions, packageAuthorityAdmissions, authorityTextByRef })
     : buildFileChunks(includedInventory, { criteria, maxFilesPerChunk });
   let evidenceInventory = [];
   let unmappedEvidenceFiles = [];
@@ -707,6 +707,7 @@ export async function createAuditSweepPlan(projectRoot, options) {
       ...(chunk.declared_evidence_delegation ? { declared_evidence_delegation: chunk.declared_evidence_delegation } : {}),
       ...(chunk.required_verification_commands ? { required_verification_commands: chunk.required_verification_commands } : {}),
       ...(chunk.declared_evidence_targets ? { declared_evidence_targets: chunk.declared_evidence_targets } : {}),
+      ...(chunk.declared_generated_targets ? { declared_generated_targets: chunk.declared_generated_targets } : {}),
       ...(chunk.evidence_roots ? { evidence_roots: chunk.evidence_roots } : {}),
       ...(chunk.declared_evidence_unresolved ? { declared_evidence_unresolved: chunk.declared_evidence_unresolved } : {}),
       ...(chunk.evidence_inventory ? { evidence_inventory: chunk.evidence_inventory } : {}),

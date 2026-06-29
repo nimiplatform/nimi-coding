@@ -1,5 +1,7 @@
 ﻿import { createHash } from "node:crypto";
 
+import { createAuditSweepPlan } from "../cli/lib/audit-sweep-runtime/inventory.mjs";
+
 import {
   mkdir,
   readFile,
@@ -1177,6 +1179,175 @@ test("audit-sweep plan derives exact implementation refs declared by spec author
       "--json",
     ]);
     assert.equal(validateResult.exitCode, 0, validateResult.stdout);
+  });
+});
+
+test("audit-sweep plan emits generated runtime targets from declared evidence refs", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "runtime", "kernel"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "runtime", "kernel", "forge-runtime.md"),
+      [
+        "# Forge Runtime",
+        "",
+        "Preset zeroing writes `reports/preset-zeroing-run.json`.",
+        "The implementation evidence is `cli/lib/forge/preset-zeroing.mjs`.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await mkdir(path.join(projectRoot, "cli", "lib", "forge"), { recursive: true });
+    await writeFile(path.join(projectRoot, "cli", "lib", "forge", "preset-zeroing.mjs"), "export const presetZeroing = true;\n", "utf8");
+
+    const sweepId = "audit-sweep-test-generated-runtime-targets";
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      ".",
+      "--chunk-basis",
+      "spec",
+      "--sweep-id",
+      sweepId,
+      "--json",
+    ]);
+
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", `${sweepId}.yaml`), "utf8"));
+    const runtimeChunk = plan.chunks.find((chunk) => chunk.authority_refs.includes(".nimi/spec/runtime/kernel/forge-runtime.md"));
+    assert.ok(runtimeChunk);
+    assert.deepEqual(runtimeChunk.declared_generated_targets, ["reports/preset-zeroing-run.json"]);
+    assert.ok(runtimeChunk.declared_evidence_targets.some((target) => (
+      target.source_path === "reports/preset-zeroing-run.json"
+      && target.candidates.includes("reports/preset-zeroing-run.json")
+    )));
+    assert.ok(runtimeChunk.declared_evidence_unresolved.some((target) => (
+      target.source_path === "reports/preset-zeroing-run.json"
+      && target.candidates.includes("reports/preset-zeroing-run.json")
+    )));
+    assert.ok(runtimeChunk.evidence_inventory.includes("cli/lib/forge/preset-zeroing.mjs"));
+
+    const chunkArtifact = YAML.parse(await readFile(
+      path.join(projectRoot, ".nimi", "local", "audit", "chunks", sweepId, `${runtimeChunk.chunk_id}.yaml`),
+      "utf8",
+    ));
+    assert.deepEqual(chunkArtifact.declared_generated_targets, ["reports/preset-zeroing-run.json"]);
+    const planSchema = YAML.parse(await readFile(path.join(repoRoot, "contracts", "audit-plan.schema.yaml"), "utf8"));
+    const chunkSchema = YAML.parse(await readFile(path.join(repoRoot, "contracts", "audit-chunk.schema.yaml"), "utf8"));
+    assert.ok(planSchema.chunk_optional_fields.includes("declared_generated_targets"));
+    assert.ok(chunkSchema.optional_top_level_fields.includes("declared_generated_targets"));
+
+    const validateResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "validate",
+      "--sweep-id",
+      sweepId,
+      "--scope",
+      "plan",
+      "--json",
+    ]);
+    assert.equal(validateResult.exitCode, 0, validateResult.stdout);
+  });
+});
+
+test("audit-sweep plan maps explicit worker package directory refs to evidence inventory", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "workers"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "workers", "model-index.md"),
+      [
+        "# Model Index Worker",
+        "",
+        "`packages/model-index/` is the normative implementation package for this worker.",
+        "`packages/model-index//bad` must not become evidence.",
+        "`packages/model-index/.` must not become evidence.",
+        "`packages/../outside` must not become evidence.",
+        "`apps/model-index` is outside the accepted worker package evidence form.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await mkdir(path.join(projectRoot, "packages", "model-index", "src"), { recursive: true });
+    await mkdir(path.join(projectRoot, "packages", "model-index", "bad"), { recursive: true });
+    await writeFile(path.join(projectRoot, "packages", "model-index", "README.md"), "# Model Index\n", "utf8");
+    await writeFile(path.join(projectRoot, "packages", "model-index", "src", "index.ts"), "export const modelIndex = true;\n", "utf8");
+
+    const planResult = await captureRunCli([
+      "sweep",
+      "audit",
+      "plan",
+      "--root",
+      ".",
+      "--chunk-basis",
+      "spec",
+      "--sweep-id",
+      "audit-sweep-test-worker-package-ref",
+      "--json",
+    ]);
+
+    assert.equal(planResult.exitCode, 0, planResult.stderr);
+    const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-worker-package-ref.yaml"), "utf8"));
+    const workerChunk = plan.chunks.find((chunk) => chunk.authority_refs.includes(".nimi/spec/workers/model-index.md"));
+    assert.ok(workerChunk);
+    assert.ok(workerChunk.evidence_roots.includes("packages/model-index"));
+    assert.ok(!workerChunk.evidence_roots.includes("packages/model-index/"));
+    assert.ok(!workerChunk.evidence_roots.some((rootRef) => rootRef.includes("//")));
+    assert.ok(!workerChunk.evidence_roots.some((rootRef) => rootRef.split("/").includes(".")));
+    assert.ok(!workerChunk.evidence_roots.some((rootRef) => rootRef.includes("..")));
+    assert.ok(!workerChunk.evidence_roots.includes("apps/model-index"));
+    assert.ok(workerChunk.declared_evidence_targets.some((target) => (
+      target.source_path === "packages/model-index"
+      && target.candidates.includes("packages/model-index")
+    )));
+    assert.ok(workerChunk.evidence_inventory.includes("packages/model-index/src/index.ts"));
+  });
+});
+
+test("audit-sweep plan API resolves worker package refs against explicit project root", async () => {
+  await withTempProject(async (projectRoot) => {
+    const startResult = await captureRunCli(["start"]);
+    assert.equal(startResult.exitCode, 0);
+
+    await mkdir(path.join(projectRoot, ".nimi", "spec", "workers"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".nimi", "spec", "workers", "model-index.md"),
+      [
+        "# Model Index Worker",
+        "",
+        "`packages/model-index` is the normative implementation package for this worker.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await mkdir(path.join(projectRoot, "packages", "model-index", "src"), { recursive: true });
+    await writeFile(path.join(projectRoot, "packages", "model-index", "src", "index.ts"), "export const modelIndex = true;\n", "utf8");
+
+    const previousCwd = process.cwd();
+    try {
+      process.chdir(repoRoot);
+      const result = await createAuditSweepPlan(projectRoot, {
+        root: ".",
+        chunkBasis: "spec",
+        sweepId: "audit-sweep-test-worker-package-ref-explicit-root",
+      });
+
+      assert.equal(result.ok, true, result.error);
+      const plan = YAML.parse(await readFile(path.join(projectRoot, ".nimi", "local", "audit", "plans", "audit-sweep-test-worker-package-ref-explicit-root.yaml"), "utf8"));
+      const workerChunk = plan.chunks.find((chunk) => chunk.authority_refs.includes(".nimi/spec/workers/model-index.md"));
+      assert.ok(workerChunk);
+      assert.ok(workerChunk.evidence_roots.includes("packages/model-index"));
+      assert.ok(workerChunk.evidence_inventory.includes("packages/model-index/src/index.ts"));
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 });
 

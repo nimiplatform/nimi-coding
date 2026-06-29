@@ -35,6 +35,7 @@ optional_top_level_fields:
   - declared_evidence_delegation
   - required_verification_commands
   - declared_evidence_targets
+  - declared_generated_targets
   - declared_evidence_unresolved
   - evidence_roots
   - evidence_inventory

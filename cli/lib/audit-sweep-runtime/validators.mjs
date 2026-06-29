@@ -22,6 +22,7 @@ import {
 } from "./common.mjs";
 import { ensureClusterStore } from "./risk-budget.mjs";
 import { buildAuditValidityForEvidence } from "./audit-validity.mjs";
+import { unresolvedDeclaredEvidenceTargets } from "./coverage-quality.mjs";
 import {
   validateClusterShape,
   deriveLedgerSnapshotId,
@@ -306,7 +307,7 @@ function validatePlanShape(plan, sweepId, checks) {
     const unmappedEvidenceFiles = Array.isArray(plan.unmapped_evidence_files) ? plan.unmapped_evidence_files : [];
     const mappedEvidenceFiles = plan.chunks.flatMap((chunk) => Array.isArray(chunk.evidence_inventory) ? chunk.evidence_inventory : []);
     const unresolvedDeclaredEvidenceChunks = plan.chunks
-      .filter((chunk) => Array.isArray(chunk.declared_evidence_unresolved) && chunk.declared_evidence_unresolved.length > 0)
+      .filter((chunk) => unresolvedDeclaredEvidenceTargets(chunk).length > 0)
       .map((chunk) => chunk.chunk_id);
     const mappedEvidenceSet = new Set(mappedEvidenceFiles);
     const expectedMappedFiles = evidenceInventoryFiles.filter((fileRef) => !unmappedEvidenceFiles.includes(fileRef));

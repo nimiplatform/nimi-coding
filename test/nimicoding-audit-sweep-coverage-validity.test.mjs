@@ -565,6 +565,72 @@ test("coverage quality warns on sparse evidence and fan-in and blocks unresolved
   assert.ok(quality.blockers.some((blocker) => blocker.id === "unmapped_evidence_files"));
 });
 
+test("coverage quality accepts generated runtime targets only when implementation evidence exists", () => {
+  const implementationChunk = {
+    chunk_id: "chunk-001-forge-runtime",
+    owner_domain: "runtime",
+    authority_refs: [".nimi/spec/runtime/kernel/forge-runtime.md"],
+    evidence_roots: ["nimi-coding/cli/lib/forge"],
+    evidence_inventory: ["nimi-coding/cli/lib/forge/preset-zeroing.mjs"],
+    declared_evidence_unresolved: ["reports/preset-zeroing-run.json"],
+    declared_generated_targets: ["reports/preset-zeroing-run.json"],
+  };
+  const quality = buildCoverageQuality(specPlan([implementationChunk], {
+    evidence_files: 1,
+    unmapped_evidence_files: 0,
+  }), [implementationChunk]);
+
+  assert.ok(!quality.blockers.some((blocker) => blocker.id === "declared_evidence_target_unresolved"));
+
+  const noImplementationChunk = {
+    ...implementationChunk,
+    chunk_id: "chunk-002-forge-runtime-no-implementation",
+    evidence_roots: [],
+    evidence_inventory: [],
+  };
+  const noImplementationQuality = buildCoverageQuality(specPlan([noImplementationChunk], {
+    evidence_files: 0,
+    unmapped_evidence_files: 0,
+  }), [noImplementationChunk]);
+
+  assert.ok(noImplementationQuality.blockers.some((blocker) => (
+    blocker.id === "declared_evidence_target_unresolved"
+    && blocker.chunk_ids.includes("chunk-002-forge-runtime-no-implementation")
+  )));
+
+  const rootOnlyChunk = {
+    ...implementationChunk,
+    chunk_id: "chunk-003-forge-runtime-root-only",
+    evidence_roots: ["cli/lib/forge"],
+    evidence_inventory: [],
+  };
+  const rootOnlyQuality = buildCoverageQuality(specPlan([rootOnlyChunk], {
+    evidence_files: 0,
+    unmapped_evidence_files: 0,
+  }), [rootOnlyChunk]);
+
+  assert.ok(rootOnlyQuality.blockers.some((blocker) => (
+    blocker.id === "declared_evidence_target_unresolved"
+    && blocker.chunk_ids.includes("chunk-003-forge-runtime-root-only")
+  )));
+
+  const docOnlyChunk = {
+    ...implementationChunk,
+    chunk_id: "chunk-004-forge-runtime-doc-only",
+    evidence_roots: ["cli/lib/forge"],
+    evidence_inventory: ["cli/lib/forge/README.md"],
+  };
+  const docOnlyQuality = buildCoverageQuality(specPlan([docOnlyChunk], {
+    evidence_files: 1,
+    unmapped_evidence_files: 0,
+  }), [docOnlyChunk]);
+
+  assert.ok(docOnlyQuality.blockers.some((blocker) => (
+    blocker.id === "declared_evidence_target_unresolved"
+    && blocker.chunk_ids.includes("chunk-004-forge-runtime-doc-only")
+  )));
+});
+
 test("partial coverage closeout posture never reports audit_complete", () => {
   const partialStatus = deriveCoverageStatus("partial_authority_only");
   const partialPosture = deriveCoverageCloseoutPosture({
