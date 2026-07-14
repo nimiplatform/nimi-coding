@@ -15,10 +15,6 @@ methodology:
           - "spec/**"
           - "config/**"
 
-adapters:
-  - changed-files:
-      - any-glob-to-any-file: "adapters/**"
-
 docs:
   - changed-files:
       - any-glob-to-any-file:

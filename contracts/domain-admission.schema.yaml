@@ -1,6 +1,6 @@
-version: 1
+version: 2
 contract:
-  id: nimicoding.domain-admission.v1
+  id: nimicoding.domain-admission.v2
   owner: nimi-coding
   purpose: Require explicit admission for every host spec domain before it is product authority.
 required_top_level_fields:
@@ -26,7 +26,7 @@ domain_admissions:
     owner: project
     admitted_by: nimicoding_init_default_project_domain
     allowed_surface_classes: [product_authority, product_authority_table, thin_guidance, support_registry]
-    forbidden_surface_classes: [derived_view, spec_generation_state, audit_evidence_state, lifecycle_progress_state, candidate_roadmap, methodology_authority]
+    forbidden_surface_classes: [derived_view, spec_generation_state, audit_evidence_state, operational_local_artifact, methodology_authority]
     validation_commands: [pnpm exec nimicoding validate-spec-tree -- .nimi/spec]
     migration_disposition_when_unadmitted: block
 domain_authority_class_enum:

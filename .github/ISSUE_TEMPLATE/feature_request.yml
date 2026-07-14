@@ -8,7 +8,7 @@ body:
     id: component
     attributes:
       label: Component
-      description: cli / contracts / methodology / adapters / docs / ci
+      description: cli / contracts / methodology / spec / docs / ci
       placeholder: methodology
     validations:
       required: true
@@ -30,7 +30,7 @@ body:
     id: boundary
     attributes:
       label: Boundary impact
-      description: Does this add runtime, provider, scheduler, notification, or self-hosting ownership?
+      description: Does this cross the package boundary into host-owned planning, execution, or task state?
     validations:
       required: true
   - type: textarea

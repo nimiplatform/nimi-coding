@@ -1,59 +1,27 @@
-version: 2
+version: 3
 product:
   package_name: "@nimiplatform/nimi-coding"
-  mission: ai_native_coding_governance_toolkit
-target_experience:
-  install_step: "npm install -D @nimiplatform/nimi-coding"
-  bootstrap_step: "npx nimicoding start"
-  reconstruction_owner: ai_skills
-  canonical_spec_root: ".nimi/spec"
-  phase_one_posture: contract_and_checklist_only
-methodology_posture:
-  risk_shape: authority_bearing_or_high_risk_only
-  execution_default: inline_manager_worker
-  continuity_model: continuity_agnostic
-standalone_completion:
-  profile: boundary_complete
-  completed_surfaces:
-    - bootstrap
-    - doctor
-    - handoff
-    - sweep_audit
-    - sweep_design
-    - validators
-    - topic_lifecycle_report_methodology
-    - closeout
-    - ingest
-    - review
-    - decision
-    - admission
-    - host_overlay_recognition
-  deferred_execution_surfaces:
-    - packet_bound_run_kernel
-    - provider_backed_execution
-    - scheduler
-    - notification
-    - automation_backend
-    - multi_topic_orchestration
-  promoted_parity_gap_summary:
-    - packet_bound_run_kernel
-    - provider_backed_execution
-    - scheduler_automation_notification
-canonical_spec_model:
-  state_carrier_ref: package://@nimiplatform/nimi-coding/spec/bootstrap-state.yaml
-  posture_carrier_ref: package://@nimiplatform/nimi-coding/spec/product-scope.yaml
-  phase_one_contracts:
-    - package://@nimiplatform/nimi-coding/spec/_meta/spec-tree-model.yaml
-    - package://@nimiplatform/nimi-coding/spec/_meta/command-gating-matrix.yaml
-    - package://@nimiplatform/nimi-coding/spec/_meta/spec-authority-cutover-readiness.yaml
-    - package://@nimiplatform/nimi-coding/spec/_meta/generate-drift-migration-checklist.yaml
-    - package://@nimiplatform/nimi-coding/spec/_meta/governance-routing-cutover-checklist.yaml
-    - package://@nimiplatform/nimi-coding/spec/_meta/phase2-impacted-surface-matrix.yaml
-    - package://@nimiplatform/nimi-coding/spec/bootstrap-state.yaml
-    - package://@nimiplatform/nimi-coding/spec/product-scope.yaml
-    - package://@nimiplatform/nimi-coding/contracts/sweep-design-result.yaml
-  blocked_until_phase_two:
-    - command_behavior_rewrites_not_admitted
-    - authority_cutover_not_admitted
-    - physical_spec_tree_migration_not_admitted
-  high_risk_admission_evidence: .nimi/local/high-risk-admissions.yaml
+  mission: methodology_spec_construction_and_deterministic_validation
+owned_surfaces:
+  - bootstrap_and_sync_of_managed_.nimi_projections
+  - methodology_principles
+  - spec_surface_taxonomy_and_placement_contracts
+  - spec_construction_inputs_and_generation_audit_contracts
+  - deterministic_spec_governance_and_ai_governance_checks
+out_of_scope:
+  - planning_or_task_lifecycle
+  - agent_or_provider_orchestration
+  - implementation_execution
+  - review_approval_or_completion_state
+  - host_prompt_or_context_management
+  - scheduling_notifications_and_automation
+integration_contract:
+  host_owns_execution: true
+  nimi_coding_may_emit_non_mutating_analysis: true
+  nimi_coding_may_validate_declared_artifacts: true
+  nimi_coding_must_not_create_host_execution_state: true
+canonical_roots:
+  package_authority: package://@nimiplatform/nimi-coding
+  host_product_authority: .nimi/spec
+  managed_projection_roots: [.nimi/config, .nimi/contracts, .nimi/methodology]
+  local_non_authority_root: .nimi/local

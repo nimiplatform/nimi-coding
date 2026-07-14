@@ -7,9 +7,6 @@
 - name: methodology
   color: "0e8a16"
   description: "Methodology source and policy"
-- name: adapters
-  color: "d876e3"
-  description: "External host adapter profiles"
 - name: docs
   color: "1d76db"
   description: "Documentation"

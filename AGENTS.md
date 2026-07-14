@@ -1,28 +1,25 @@
 # AGENTS.md
 
-- Think before acting. Read existing files before writing code. Prefer editing over rewriting.
-- Be concise in output but thorough in reasoning. No sycophantic openers or closing fluff.
-- Test changes before declaring done.
-
 ## Scope
 
-Applies to the whole repository.
+This repository publishes `@nimiplatform/nimi-coding`. It owns methodology, spec construction contracts, managed `.nimi/{config,contracts,methodology}` projections, and deterministic validators.
 
-## Current Bootstrap Posture
+It does not own an AI host's planning, delegation, execution, review, or task state. Do not add provider runtimes or host-control abstractions here.
 
-- Package-owned methodology source lives directly under `config/**`, `contracts/**`, `methodology/**`, and `spec/**`.
-- Generated or adopted host projects use `.nimi/**` as their project-local AI truth surface.
-- This repository is not self-hosting its own execution methodology yet.
-- Runtime ownership stays delegated to an external AI host or another tool boundary.
+## Engineering rules
 
-## Retrieval Defaults
+- Read package contracts before changing validator behavior.
+- Preserve fail-closed authority semantics; do not add fallback success.
+- Keep package projections byte-stable through `nimicoding sync --check`.
+- Keep product authority under the host's `.nimi/spec/**`.
+- Keep generated and verification evidence outside product authority.
+- Prefer root-cause changes and test every contract change.
+- ESM imports include `.mjs` or `.js` extensions.
 
-- Start with `methodology/**`, `spec/**`, `contracts/**`, `config/**`, `README.md`, and `package.json`.
-- Treat root `AGENTS.md` plus those package source directories as the current local authority for package-internal AI behavior.
+## Verification
 
-## Hard Boundaries
-
-- Do not treat this repository as methodology-complete yet.
-- Do not add CLI runtime, skill runtime, or self-hosting workflow unless the active packet explicitly admits it.
-- Keep package-owned source AI-native and low-redundancy; do not add human-friendly parallel truth by default.
-- Do not change the external project bootstrap contract away from `.nimi/**` unless the package contract itself is explicitly redesigned.
+```bash
+pnpm test
+pnpm check:pack
+pnpm check:ci
+```

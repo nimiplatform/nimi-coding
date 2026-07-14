@@ -1,8 +1,8 @@
 {
   "name": "@nimiplatform/nimi-coding",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "private": false,
-  "description": "AI-native coding governance toolkit for bootstrapping .nimi/** into arbitrary projects.",
+  "description": "AI-native methodology, spec construction, and deterministic governance validation.",
   "license": "MIT",
   "homepage": "https://docs.nimi.ai/nimicoding",
   "repository": {
@@ -38,13 +38,11 @@
     "nimicoding"
   ],
   "dependencies": {
-    "@openai/codex-sdk": "^0.124.0",
     "yaml": "^2.8.1"
   },
   "files": [
     "bin",
     "cli",
-    "adapters",
     "config",
     "contracts",
     "methodology",

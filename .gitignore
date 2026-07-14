@@ -27,4 +27,3 @@ pnpm-debug.log*
 # local Nimi Coding operational artifacts
 .nimi/local/
 .nimi/cache/
-.nimi/topics/

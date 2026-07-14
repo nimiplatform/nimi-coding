@@ -1,15 +1,11 @@
 import path from "node:path";
 
 import { validateSpecAudit, buildValidatorCliReport } from "../lib/validators.mjs";
-import { loadSpecGenerationInputsConfig } from "../lib/contracts.mjs";
 import { localize } from "../lib/ui.mjs";
 
 export async function runValidateSpecAudit(args) {
   const normalized = args[0] === "--" ? args.slice(1) : args;
-  const generationInputs = await loadSpecGenerationInputsConfig(process.cwd());
-  let targetPath = generationInputs.ok && generationInputs.mode === "class_filtered"
-    ? ".nimi/local/state/spec-generation/spec-generation-audit.yaml"
-    : ".nimi/spec/_meta/spec-generation-audit.yaml";
+  let targetPath = ".nimi/local/state/spec-generation/spec-generation-audit.yaml";
 
   if (normalized.length > 1) {
     process.stderr.write(localize(

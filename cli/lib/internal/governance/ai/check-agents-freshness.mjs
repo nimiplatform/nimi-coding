@@ -28,13 +28,18 @@ const GENERIC_PNPM_COMMANDS = new Set([
   "run",
 ]);
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function collectKnownPnpmScripts(projectRoot) {
-  const rootPkg = readJson(path.join(projectRoot, "package.json"));
-  return new Set(Object.keys(rootPkg.scripts || {}));
+function collectKnownPnpmScripts(projectRoot, failures) {
+  const packagePath = path.join(projectRoot, "package.json");
+  if (!fs.existsSync(packagePath)) {
+    return new Set();
+  }
+  try {
+    const rootPkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+    return new Set(Object.keys(rootPkg?.scripts || {}));
+  } catch (error) {
+    failures.push(`package.json: invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    return new Set();
+  }
 }
 
 function validatePnpmCommand(command, knownScripts, failures, relPath) {
@@ -91,7 +96,7 @@ export function evaluateAgentsFreshnessCheck(options = {}) {
     : DEFAULT_STALE_TOKENS;
 
   const failures = [];
-  const knownScripts = collectKnownPnpmScripts(projectRoot);
+  const knownScripts = collectKnownPnpmScripts(projectRoot, failures);
 
   for (const target of targets) {
     const abs = path.join(projectRoot, target.rel);

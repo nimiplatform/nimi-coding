@@ -6,7 +6,7 @@ import { pathExists } from "../fs-helpers.mjs";
 import { parseYamlText } from "../yaml-helpers.mjs";
 import { isPlainObject } from "../value-helpers.mjs";
 
-const SURFACE_RESULT_CONTRACT = "nimicoding.surface-validator-result.v1";
+const SURFACE_RESULT_CONTRACT = "nimicoding.surface-validator-result.v2";
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -18,12 +18,12 @@ const CONTRACT_REFS = {
   tableFamily: "contracts/table-family.schema.yaml",
   domainAdmission: "contracts/domain-admission.schema.yaml",
   trackedOutputAdmission: "contracts/tracked-output-admission.schema.yaml",
-  highRiskAdmission: "contracts/high-risk-admission.schema.yaml",
+  specLayout: "contracts/spec-layout.schema.yaml",
   negativeFixtures: "contracts/negative-fixtures.yaml",
 };
 
 const TEXT_RULE_BODY_PATTERN = /\bMUST(?:\s+NOT)?\b|\bmust\s+not\b|必须|不得|fail(?:s|ed)?\s+closed/i;
-const PRODUCT_RULE_ID_PATTERN = /\b[A-Z][A-Z0-9]*-[A-Z0-9]+-[A-Z0-9-]+\b/;
+const PRODUCT_RULE_DEFINITION_PATTERN = /^\s*(?:[-*]\s*)?(?:rule_id|rule id)\s*[:|]/im;
 const GENERATED_REF_PATTERN = /\.nimi\/spec\/[^)\s]+\/kernel\/generated\/|\.nimi\/spec\/generated\/|kernel\/generated\//;
 
 function toPosix(value) {
@@ -65,7 +65,225 @@ async function loadSurfaceContracts(projectRoot) {
   if (hostDomainAdmission) {
     contracts.domainAdmission = hostDomainAdmission;
   }
+  const hostSpecLayout = await readHostYamlAt(projectRoot, ".nimi/config/spec-layout.yaml");
+  contracts.hostSpecLayout = parseHostSpecLayout(
+    hostSpecLayout,
+    contracts.specLayout,
+    contracts.tableFamily,
+  );
   return contracts;
+}
+
+function isPortableRef(ref) {
+  return typeof ref === "string"
+    && ref.length > 0
+    && !path.posix.isAbsolute(ref)
+    && !ref.startsWith("./")
+    && !ref.split("/").includes("..")
+    && path.posix.normalize(ref) === ref;
+}
+
+function isRefWithin(ref, root) {
+  return ref === root || ref.startsWith(`${root}/`);
+}
+
+function hasExactFields(value, requiredFields) {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const actual = Object.keys(value).sort();
+  const expected = [...requiredFields].sort();
+  return actual.length === expected.length
+    && actual.every((field, index) => field === expected[index]);
+}
+
+function isLiteralPortableRef(ref) {
+  return isPortableRef(ref) && !/[\*{}]/.test(ref);
+}
+
+function isGeneratedProjectionRoot(ref, canonicalRoot) {
+  return ref === `${canonicalRoot}/generated`
+    || ref.startsWith(`${canonicalRoot}/generated/`)
+    || /^\.nimi\/spec\/[^/]+\/kernel\/generated(?:\/.*)?$/.test(ref);
+}
+
+function parseHostSpecLayout(hostConfig, schemaContract, tableFamilyContract) {
+  if (!hostConfig) {
+    return {
+      ok: true,
+      present: false,
+      errors: [],
+      canonicalRoot: ".nimi/spec",
+      hostInstructionPaths: [],
+      trackedDerivedProjections: [],
+      tableFamilyExtensions: [],
+    };
+  }
+
+  const errors = [];
+  const parsed = hostConfig.data;
+  const layout = parsed?.spec_layout;
+  const requiredDocumentFields = Array.isArray(schemaContract.data?.required_top_level_fields)
+    ? schemaContract.data.required_top_level_fields.map(String)
+    : [];
+  const requiredLayoutFields = Array.isArray(schemaContract.data?.layout_required_fields)
+    ? schemaContract.data.layout_required_fields.map(String)
+    : [];
+  const requiredProjectionFields = Array.isArray(schemaContract.data?.tracked_derived_projection_required_fields)
+    ? schemaContract.data.tracked_derived_projection_required_fields.map(String)
+    : [];
+  const requiredFamilyFields = Array.isArray(schemaContract.data?.table_family_extension_required_fields)
+    ? schemaContract.data.table_family_extension_required_fields.map(String)
+    : [];
+  const packageFamilyIds = new Set(
+    (tableFamilyContract.data?.table_families ?? []).map((entry) => String(entry.table_family)),
+  );
+
+  if (parsed?.version !== 1 || parsed?.contract_ref !== ".nimi/contracts/spec-layout.schema.yaml" || !isPlainObject(layout)) {
+    errors.push("invalid_spec_layout_config: .nimi/config/spec-layout.yaml");
+  }
+  if (!hasExactFields(parsed, requiredDocumentFields)) {
+    errors.push("invalid_spec_layout_document_fields: .nimi/config/spec-layout.yaml");
+  }
+  if (!hasExactFields(layout, requiredLayoutFields)) {
+    errors.push("invalid_spec_layout_fields: .nimi/config/spec-layout.yaml");
+  }
+  for (const field of requiredLayoutFields) {
+    if (!(field in (layout ?? {}))) {
+      errors.push(`missing_spec_layout_field: .nimi/config/spec-layout.yaml: ${field}`);
+    }
+  }
+
+  const canonicalRoot = typeof layout?.canonical_root === "string" ? layout.canonical_root : ".nimi/spec";
+  if (!isPortableRef(canonicalRoot) || canonicalRoot !== ".nimi/spec") {
+    errors.push(`invalid_spec_layout_canonical_root: ${canonicalRoot}`);
+  }
+
+  if (!Array.isArray(layout?.host_instruction_paths)) {
+    errors.push("invalid_host_instruction_paths: .nimi/config/spec-layout.yaml");
+  }
+  const hostInstructionPaths = Array.isArray(layout?.host_instruction_paths)
+    ? layout.host_instruction_paths.map(String)
+    : [];
+  const seenInstructionPaths = new Set();
+  for (const ref of hostInstructionPaths) {
+    if (!isPortableRef(ref)
+      || !ref.startsWith(`${canonicalRoot}/`)
+      || ref === `${canonicalRoot}/INDEX.md`
+      || ref.includes("/kernel/")
+      || !ref.endsWith(".md")
+      || /[\*{}]/.test(path.posix.basename(ref))) {
+      errors.push(`invalid_host_instruction_path: ${ref}`);
+    }
+    if (seenInstructionPaths.has(ref)) {
+      errors.push(`duplicate_host_instruction_path: ${ref}`);
+    }
+    seenInstructionPaths.add(ref);
+  }
+
+  if (!Array.isArray(layout?.tracked_derived_projections)) {
+    errors.push("invalid_tracked_derived_projections: .nimi/config/spec-layout.yaml");
+  }
+  const trackedDerivedProjections = Array.isArray(layout?.tracked_derived_projections)
+    ? layout.tracked_derived_projections
+    : [];
+  const seenProjectionIds = new Set();
+  const seenProjectionRoots = new Set();
+  for (const projection of trackedDerivedProjections) {
+    if (!isPlainObject(projection)) {
+      errors.push("invalid_tracked_derived_projection: non-object entry");
+      continue;
+    }
+    if (!hasExactFields(projection, requiredProjectionFields)) {
+      errors.push(`invalid_tracked_derived_projection_fields: ${String(projection.projection_id ?? "unknown")}`);
+    }
+    for (const field of requiredProjectionFields) {
+      if (!(field in projection)) {
+        errors.push(`missing_tracked_derived_projection_field: ${String(projection.projection_id ?? "unknown")}: ${field}`);
+      }
+    }
+    const projectionId = String(projection.projection_id ?? "");
+    const root = String(projection.root ?? "");
+    const sourceRoots = Array.isArray(projection.source_roots) ? projection.source_roots.map(String) : [];
+    if (!projectionId || seenProjectionIds.has(projectionId)) {
+      errors.push(`invalid_or_duplicate_projection_id: ${projectionId || "empty"}`);
+    }
+    const overlapsExistingRoot = [...seenProjectionRoots].some((existingRoot) => (
+      isRefWithin(root, existingRoot) || isRefWithin(existingRoot, root)
+    ));
+    if (!isLiteralPortableRef(root)
+      || !isGeneratedProjectionRoot(root, canonicalRoot)
+      || overlapsExistingRoot) {
+      errors.push(`invalid_or_duplicate_projection_root: ${root || "empty"}`);
+    }
+    if (sourceRoots.length === 0 || sourceRoots.some((ref) => (
+      !isLiteralPortableRef(ref)
+      || !ref.startsWith(`${canonicalRoot}/`)
+      || isRefWithin(ref, root)
+    ))) {
+      errors.push(`invalid_projection_source_roots: ${projectionId || "unknown"}`);
+    }
+    for (const field of ["generate_command", "drift_check_command", "required_marker"]) {
+      if (typeof projection[field] !== "string" || projection[field].trim().length === 0) {
+        errors.push(`invalid_tracked_derived_projection_field: ${projectionId || "unknown"}: ${field}`);
+      }
+    }
+    seenProjectionIds.add(projectionId);
+    seenProjectionRoots.add(root);
+  }
+
+  if (!Array.isArray(layout?.table_family_extensions)) {
+    errors.push("invalid_table_family_extensions: .nimi/config/spec-layout.yaml");
+  }
+  const tableFamilyExtensions = Array.isArray(layout?.table_family_extensions)
+    ? layout.table_family_extensions
+    : [];
+  const seenFamilies = new Set();
+  for (const family of tableFamilyExtensions) {
+    if (!isPlainObject(family)) {
+      errors.push("invalid_table_family_extension: non-object entry");
+      continue;
+    }
+    if (!hasExactFields(family, requiredFamilyFields)) {
+      errors.push(`invalid_table_family_extension_fields: ${String(family.table_family ?? "unknown")}`);
+    }
+    for (const field of requiredFamilyFields) {
+      if (!(field in family)) {
+        errors.push(`missing_table_family_extension_field: ${String(family.table_family ?? "unknown")}: ${field}`);
+      }
+    }
+    const familyId = String(family.table_family ?? "");
+    if (!/^[a-z][a-z0-9_]*$/.test(familyId) || seenFamilies.has(familyId)) {
+      errors.push(`invalid_or_duplicate_table_family_extension: ${familyId || "empty"}`);
+    }
+    if (packageFamilyIds.has(familyId)) {
+      errors.push(`table_family_extension_shadows_package_family: ${familyId}`);
+    }
+    if (family.authority_class !== "product_authority_table"
+      || !Array.isArray(family.required_fields)
+      || family.required_fields.length === 0
+      || family.required_fields.some((field) => typeof field !== "string" || field.length === 0)
+      || !family.required_fields.includes("table_family")
+      || !family.required_fields.includes("owner")
+      || new Set(family.required_fields).size !== family.required_fields.length
+      || !Array.isArray(family.forbidden_fields)
+      || family.forbidden_fields.some((field) => typeof field !== "string" || field.length === 0)
+      || new Set(family.forbidden_fields).size !== family.forbidden_fields.length
+      || family.required_fields.some((field) => family.forbidden_fields.includes(field))) {
+      errors.push(`invalid_table_family_extension_shape: ${familyId || "unknown"}`);
+    }
+    seenFamilies.add(familyId);
+  }
+
+  return {
+    ok: errors.length === 0,
+    present: true,
+    errors,
+    canonicalRoot,
+    hostInstructionPaths,
+    trackedDerivedProjections,
+    tableFamilyExtensions,
+  };
 }
 
 async function collectFilesUnder(rootPath) {
@@ -100,7 +318,6 @@ async function collectCandidateFiles(projectRoot, rootRef = ".nimi/spec") {
     ".nimi/derived",
     ".nimi/state",
     ".nimi/audit",
-    ".nimi/roadmap",
   ];
   const uniqueRoots = [...new Set(roots)];
   const files = [];
@@ -191,7 +408,10 @@ function tableFamilyContractMap(contracts) {
   const families = Array.isArray(contracts.tableFamily.data?.table_families)
     ? contracts.tableFamily.data.table_families
     : [];
-  return new Map(families.map((entry) => [String(entry.table_family), entry]));
+  const extensions = contracts.hostSpecLayout?.ok
+    ? contracts.hostSpecLayout.tableFamilyExtensions
+    : [];
+  return new Map([...families, ...extensions].map((entry) => [String(entry.table_family), entry]));
 }
 
 function domainAdmissionMap(contracts) {
@@ -211,17 +431,34 @@ function trackedAdmissionRoots(contracts) {
 function isTrackedNonProductRef(ref) {
   return ref.startsWith(".nimi/derived/")
     || ref.startsWith(".nimi/state/")
-    || ref.startsWith(".nimi/audit/")
-    || ref.startsWith(".nimi/roadmap/");
+    || ref.startsWith(".nimi/audit/");
 }
 
 function isAdmittedTrackedOutput(ref, admittedRoots) {
   return admittedRoots.some((root) => pathMatchesGlob(ref, root));
 }
 
-function classifyRef(ref, text, parsedYaml) {
+function projectionForRef(ref, contracts) {
+  if (!contracts.hostSpecLayout?.ok) {
+    return null;
+  }
+  return contracts.hostSpecLayout.trackedDerivedProjections.find((entry) => isRefWithin(ref, String(entry.root))) ?? null;
+}
+
+function isHostInstructionRef(ref, contracts) {
+  return contracts.hostSpecLayout?.ok
+    && contracts.hostSpecLayout.hostInstructionPaths.some((pattern) => pathMatchesGlob(ref, pattern));
+}
+
+function classifyRef(ref, text, parsedYaml, contracts) {
   if (ref.startsWith(".nimi/spec/future/")) {
-    return "candidate_roadmap";
+    return "unclassified";
+  }
+  if (isHostInstructionRef(ref, contracts)) {
+    return "host_instruction";
+  }
+  if (projectionForRef(ref, contracts)) {
+    return "tracked_derived_projection";
   }
   if (ref.startsWith(".nimi/spec/generated/") || ref.includes("/kernel/generated/")) {
     return "derived_view";
@@ -233,13 +470,7 @@ function classifyRef(ref, text, parsedYaml) {
     if (ref.endsWith("-admission-anchor.yaml")) {
       return "host_projection_anchor";
     }
-    if (/cutover|checklist|matrix|readiness|migration/i.test(ref)) {
-      return "lifecycle_progress_state";
-    }
     return "methodology_authority";
-  }
-  if (ref === ".nimi/spec/bootstrap-state.yaml") {
-    return "lifecycle_progress_state";
   }
   if (ref === ".nimi/spec/product-scope.yaml") {
     return "methodology_authority";
@@ -278,9 +509,6 @@ function classifyRef(ref, text, parsedYaml) {
   if (ref.startsWith(".nimi/local/") || ref.startsWith(".local/")) {
     return "operational_local_artifact";
   }
-  if (ref.startsWith(".nimi/topics/")) {
-    return "lifecycle_progress_state";
-  }
   if (ref.startsWith(".nimi/contracts/") || ref.startsWith(".nimi/methodology/")) {
     return "nimicoding_managed_projection";
   }
@@ -294,7 +522,6 @@ function classifyRef(ref, text, parsedYaml) {
     if (ref.startsWith(".nimi/derived/")) return "derived_view";
     if (ref.startsWith(".nimi/state/")) return "spec_generation_state";
     if (ref.startsWith(".nimi/audit/")) return "audit_evidence_state";
-    return "candidate_roadmap";
   }
   return "unclassified";
 }
@@ -312,7 +539,10 @@ function dispositionFor(ref, surfaceClass, errors) {
   if (surfaceClass === "derived_view") {
     return "delete";
   }
-  if (["spec_generation_state", "audit_evidence_state", "candidate_roadmap", "lifecycle_progress_state", "operational_local_artifact"].includes(surfaceClass)) {
+  if (surfaceClass === "host_instruction" || surfaceClass === "tracked_derived_projection") {
+    return errors.length > 0 ? "block" : "keep";
+  }
+  if (["spec_generation_state", "audit_evidence_state", "operational_local_artifact"].includes(surfaceClass)) {
     return "move_local";
   }
   if (errors.length > 0) {
@@ -331,14 +561,14 @@ function targetRootFor(surfaceClass, ref) {
   if (surfaceClass === "derived_view") {
     return "stdout_view";
   }
-  if (surfaceClass === "spec_generation_state" || surfaceClass === "lifecycle_progress_state" || surfaceClass === "operational_local_artifact") {
+  if (surfaceClass === "host_instruction" || surfaceClass === "tracked_derived_projection") {
+    return ".nimi/spec";
+  }
+  if (surfaceClass === "spec_generation_state" || surfaceClass === "operational_local_artifact") {
     return ".nimi/local/state";
   }
   if (surfaceClass === "audit_evidence_state") {
     return ".nimi/local/audit";
-  }
-  if (surfaceClass === "candidate_roadmap") {
-    return ".nimi/topics";
   }
   if (surfaceClass === "unclassified") {
     return null;
@@ -356,17 +586,20 @@ function ownerFor(surfaceClass, ref) {
   if (surfaceClass === "derived_view") {
     return "generator";
   }
+  if (surfaceClass === "tracked_derived_projection") {
+    return "generator";
+  }
+  if (surfaceClass === "host_instruction") {
+    return "product_host";
+  }
   if (surfaceClass === "spec_generation_state") {
     return "spec_generator";
   }
   if (surfaceClass === "audit_evidence_state") {
-    return "audit_workflow";
+    return "verification_process";
   }
-  if (surfaceClass === "candidate_roadmap") {
-    return "planning_owner";
-  }
-  if (surfaceClass === "lifecycle_progress_state") {
-    return "topic_or_execution_workflow";
+  if (surfaceClass === "operational_local_artifact") {
+    return "external_tooling";
   }
   return domainForSpecRef(ref) ?? "product_domain";
 }
@@ -404,9 +637,10 @@ function validationCommandsFor(entryClass) {
     product_authority_table: ["pnpm exec nimicoding validate-table-family --profile nimi --root .nimi/spec"],
     support_registry: ["pnpm exec nimicoding validate-table-family --profile nimi --root .nimi/spec"],
     thin_guidance: ["pnpm exec nimicoding validate-guidance-bodies --profile nimi --root .nimi/spec"],
+    host_instruction: ["pnpm exec nimicoding validate-placement --profile nimi --root .nimi/spec"],
+    tracked_derived_projection: ["pnpm exec nimicoding validate-placement --profile nimi --root .nimi/spec"],
     host_projection_anchor: ["pnpm exec nimicoding validate-projection-edges --profile nimi --root .nimi/spec"],
     nimicoding_managed_projection: ["pnpm exec nimicoding validate-placement --profile nimi --root .nimi/spec"],
-    candidate_roadmap: ["pnpm exec nimicoding validate-domain-admission --profile nimi --root .nimi/spec"],
   };
   return commands[entryClass] ?? ["pnpm exec nimicoding validate-placement --profile nimi --root .nimi/spec"];
 }
@@ -424,6 +658,17 @@ function validateRefPlacement(ref, surfaceClass, parsedYaml, text, contracts) {
   if (surfaceClass === "derived_view" && ref.startsWith(".nimi/spec/")) {
     addError(errors, "derived_view_under_product_authority_root", ref);
   }
+  if (surfaceClass === "tracked_derived_projection") {
+    const projection = projectionForRef(ref, contracts);
+    if (!projection) {
+      addError(errors, "tracked_derived_projection_without_layout_admission", ref);
+    } else if (!text.includes(String(projection.required_marker))) {
+      addError(errors, "tracked_derived_projection_missing_generated_marker", ref, String(projection.required_marker));
+    }
+  }
+  if (surfaceClass === "host_instruction" && PRODUCT_RULE_DEFINITION_PATTERN.test(text)) {
+    addError(errors, "host_instruction_defines_product_rule", ref);
+  }
   if (surfaceClass === "derived_view" && ref.startsWith(".nimi/local/derived/")) {
     addError(errors, "derived_view_written_to_local_derived", ref);
   }
@@ -433,14 +678,8 @@ function validateRefPlacement(ref, surfaceClass, parsedYaml, text, contracts) {
   if (surfaceClass === "audit_evidence_state" && ref.startsWith(".nimi/spec/")) {
     addError(errors, "audit_evidence_state_under_spec", ref);
   }
-  if (surfaceClass === "lifecycle_progress_state" && ref.startsWith(".nimi/spec/")) {
-    addError(errors, "lifecycle_progress_state_under_spec", ref);
-  }
   if (surfaceClass === "methodology_authority" && ref.startsWith(".nimi/spec/")) {
     addError(errors, "package_methodology_under_host_spec", ref);
-  }
-  if (surfaceClass === "candidate_roadmap" && ref.startsWith(".nimi/spec/")) {
-    addError(errors, "candidate_roadmap_under_spec", ref);
   }
   if (isTrackedNonProductRef(ref) && !isAdmittedTrackedOutput(ref, trackedAdmissionRoots(contracts))) {
     addError(errors, "tracked_non_product_without_admission", ref);
@@ -449,8 +688,8 @@ function validateRefPlacement(ref, surfaceClass, parsedYaml, text, contracts) {
     if (TEXT_RULE_BODY_PATTERN.test(text)) {
       addError(errors, "guidance_defines_rule_body", ref);
     }
-    if (PRODUCT_RULE_ID_PATTERN.test(text) && !ref.endsWith("INDEX.md")) {
-      addError(errors, "guidance_defines_or_restates_rule_id", ref);
+    if (PRODUCT_RULE_DEFINITION_PATTERN.test(text)) {
+      addError(errors, "guidance_defines_product_rule", ref);
     }
   }
   if (surfaceClass === "product_authority" && isMarkdownRef(ref) && GENERATED_REF_PATTERN.test(text)) {
@@ -482,6 +721,9 @@ function validateTableRef(ref, parsedYaml, contracts) {
       if (!(field in parsedYaml)) {
         addError(errors, "missing_table_family_required_field", ref, String(field));
       }
+    }
+    if (containsAnyKey(parsedYaml, familyContract.forbidden_fields ?? [])) {
+      addError(errors, "table_contains_family_forbidden_field", ref, family);
     }
   }
 
@@ -519,18 +761,20 @@ async function buildInventory(projectRoot, options = {}) {
   const rootRef = options.rootRef ?? ".nimi/spec";
   const absoluteFiles = await collectCandidateFiles(projectRoot, rootRef);
   const entries = [];
-  const errors = [];
+  const layoutErrors = [...(contracts.hostSpecLayout?.errors ?? [])];
+  const errors = [...layoutErrors];
 
   for (const absolutePath of absoluteFiles) {
     const ref = relativeRef(projectRoot, absolutePath);
     const text = await readFile(absolutePath, "utf8");
     const parsedYaml = isYamlRef(ref) ? yamlForText(text) : null;
-    const surfaceClass = classifyRef(ref, text, parsedYaml);
-    const entryErrors = [
-      ...validateRefPlacement(ref, surfaceClass, parsedYaml, text, contracts),
-      ...validateTableRef(ref, parsedYaml, contracts),
-      ...validateDomainRef(ref, contracts),
-    ];
+    const surfaceClass = classifyRef(ref, text, parsedYaml, contracts);
+    const validationErrors = {
+      placement: validateRefPlacement(ref, surfaceClass, parsedYaml, text, contracts),
+      table_family: validateTableRef(ref, parsedYaml, contracts),
+      domain_admission: validateDomainRef(ref, contracts),
+    };
+    const entryErrors = Object.values(validationErrors).flat();
     errors.push(...entryErrors);
     const requiredConfirmation = confirmationFor(entryErrors);
     entries.push({
@@ -544,6 +788,7 @@ async function buildInventory(projectRoot, options = {}) {
       ambiguity: ambiguityFor(requiredConfirmation, surfaceClass),
       evidence: entryErrors.length > 0 ? entryErrors : [`classified_as:${surfaceClass}`],
       validation_commands: validationCommandsFor(surfaceClass),
+      validation_errors: validationErrors,
       errors: entryErrors,
     });
   }
@@ -551,6 +796,7 @@ async function buildInventory(projectRoot, options = {}) {
   return {
     contracts,
     entries,
+    layoutErrors,
     errors,
   };
 }
@@ -602,39 +848,39 @@ function groupInventoryByDisposition(entries) {
   return Object.fromEntries(Object.entries(groups).map(([key, value]) => [key, value.sort()]));
 }
 
-function buildMigrationExecutionPackets(entries) {
-  const packetKinds = [
+function buildMigrationGroups(entries) {
+  const groupKinds = [
     {
-      packet_id: "move-package-methodology-copied-under-spec",
+      group_id: "move-package-methodology-copied-under-spec",
       dispositions: ["move_package"],
       requires_confirmation: false,
     },
     {
-      packet_id: "move-local-derived-audit-state-and-lifecycle",
+      group_id: "move-local-derived-and-audit-state",
       dispositions: ["move_local"],
       requires_confirmation: false,
     },
     {
-      packet_id: "rewrite-product-authority-tables-and-guidance",
+      group_id: "rewrite-product-authority-tables-and-guidance",
       dispositions: ["rewrite"],
       requires_confirmation: true,
     },
     {
-      packet_id: "resolve-blocked-semantic-forks",
+      group_id: "resolve-blocked-semantic-forks",
       dispositions: ["block"],
       requires_confirmation: true,
     },
   ];
-  return packetKinds
-    .map((packet) => {
-      const matching = entries.filter((entry) => packet.dispositions.includes(entry.disposition));
+  return groupKinds
+    .map((group) => {
+      const matching = entries.filter((entry) => group.dispositions.includes(entry.disposition));
       return {
-        ...packet,
+        ...group,
         entry_count: matching.length,
         source_paths: matching.map((entry) => entry.source_path).sort(),
       };
     })
-    .filter((packet) => packet.entry_count > 0);
+    .filter((group) => group.entry_count > 0);
 }
 
 function enumValidation(entries, inventory) {
@@ -655,7 +901,7 @@ function migrationPlanForInventory(rootRef, inventory) {
   const enumStatus = enumValidation(entries, inventory);
   const requiredConfirmationEntries = entries.filter((entry) => entry.required_confirmation !== "none");
   return {
-    contract: "nimicoding.spec-migration-plan.v1",
+    contract: "nimicoding.spec-migration-plan.v2",
     ok: enumStatus.unknown_target_classes.length === 0 && enumStatus.unknown_dispositions.length === 0,
     version: inventory.version,
     root: rootRef,
@@ -687,7 +933,7 @@ function migrationPlanForInventory(rootRef, inventory) {
         : "resolve_owner_or_package_boundary_before_migration",
     })),
     groups: groupInventoryByDisposition(entries),
-    execution_packets: buildMigrationExecutionPackets(entries),
+    migration_groups: buildMigrationGroups(entries),
     mutation_policy: {
       mutates_source_tree: false,
       allowed_output_roots: [".nimi/local/state/spec-surface"],
@@ -700,13 +946,15 @@ export async function classifySpecSurface(projectRoot, options = {}) {
   const { entries, errors } = await buildInventory(projectRoot, options);
   return reportFor("classify-spec-tree", errors.length === 0, errors, [], entries, {
     inventory: {
-      version: 1,
+      version: 2,
       inventory: entries,
       disposition_enum: ["keep", "move_package", "move_local", "split", "rewrite", "delete", "block"],
       target_class_enum: [
         "product_authority",
         "product_authority_table",
         "thin_guidance",
+        "host_instruction",
+        "tracked_derived_projection",
         "derived_view",
         "spec_generation_state",
         "audit_evidence_state",
@@ -714,13 +962,11 @@ export async function classifySpecSurface(projectRoot, options = {}) {
         "methodology_authority",
         "nimicoding_managed_projection",
         "host_projection_anchor",
-        "candidate_roadmap",
         "support_registry",
-        "lifecycle_progress_state",
       ],
       semantic_constraints: [
         "inventory_must_not_modify_files",
-        "future_under_spec_must_not_have_keep_disposition",
+        "future_under_spec_must_fail_classification",
         "nimicoding_managed_projection_must_not_be_promoted_to_product_authority",
       ],
     },
@@ -753,7 +999,11 @@ export function isProductAuthoritySurfaceClass(surfaceClass) {
 }
 
 export async function validatePlacement(projectRoot, options = {}) {
-  const { entries, errors } = await buildInventory(projectRoot, options);
+  const { entries, layoutErrors } = await buildInventory(projectRoot, options);
+  const errors = [
+    ...layoutErrors,
+    ...entries.flatMap((entry) => entry.validation_errors?.placement ?? []),
+  ];
   return reportFor("validate-placement", errors.length === 0, errors, [], entries);
 }
 
@@ -804,8 +1054,8 @@ export async function validateGuidanceBodies(projectRoot, options = {}) {
     if (TEXT_RULE_BODY_PATTERN.test(text)) {
       addError(errors, "guidance_defines_rule_body", entry.source_path);
     }
-    if (PRODUCT_RULE_ID_PATTERN.test(text) && !entry.source_path.endsWith("INDEX.md")) {
-      addError(errors, "guidance_defines_or_restates_rule_id", entry.source_path);
+    if (PRODUCT_RULE_DEFINITION_PATTERN.test(text)) {
+      addError(errors, "guidance_defines_product_rule", entry.source_path);
     }
   }
   return reportFor("validate-guidance-bodies", errors.length === 0, errors, [], entries);

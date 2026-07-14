@@ -5,7 +5,7 @@
 
 ## Scope
 
-- Component(s): cli / contracts / methodology / adapters / docs / ci
+- Component(s): cli / contracts / methodology / spec / docs / ci
 - Type: bug / feature / breaking / docs / refactor
 
 ## Verification
@@ -22,9 +22,8 @@ Commands used:
 
 ## Boundary Check
 
-- [ ] No provider-backed execution added
-- [ ] No scheduler or notification backend added
-- [ ] No self-hosting workflow added
+- [ ] No host-control or provider-execution surface added
+- [ ] No planning, review, or task-state ownership added
 - [ ] `.nimi/spec/**` host-project authority contract preserved
 
 ## Breaking Changes

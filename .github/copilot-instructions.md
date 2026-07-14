@@ -8,4 +8,4 @@ Authoritative project rules are defined in:
 2. Path-scoped `AGENTS.md` files, if any are added later
 
 If this file and `AGENTS.md` conflict, `AGENTS.md` wins. Do not invent
-tool-specific workflow rules outside the AGENTS hierarchy.
+tool-specific host-control rules outside the AGENTS hierarchy.

@@ -42,9 +42,6 @@ ownership_semantics:
       the canonical content after bootstrap. nimicoding sync --apply only
       writes when the host file is missing. Drift never fails sync or doctor.
 
-excluded_projection:
-  - methodology/spec-target-truth-profile.yaml
-
 ownership_overrides:
   - path: .nimi/config/spec-generation-inputs.yaml
     ownership: host_state_seed

@@ -189,15 +189,6 @@ export async function inspectBootstrapCompatibility(projectRoot) {
   const contractId = readYamlScalar(bootstrapConfigText, "bootstrap_contract");
   const contractVersion = readYamlScalar(bootstrapConfigText, "bootstrap_contract_version");
 
-  if (!contractId && !contractVersion) {
-    return {
-      status: initializedBy === PACKAGE_NAME ? "legacy" : "unsupported",
-      initializedBy,
-      contractId,
-      contractVersion,
-    };
-  }
-
   if (initializedBy !== PACKAGE_NAME) {
     return {
       status: "unsupported",

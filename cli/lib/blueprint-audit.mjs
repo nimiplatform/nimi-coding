@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 
-import { loadBlueprintReference, loadSpecGenerationInputsConfig, loadSpecTreeModelContract } from "./contracts.mjs";
+import { loadBlueprintReference, loadSpecGenerationInputsConfig } from "./contracts.mjs";
 import { pathExists } from "./fs-helpers.mjs";
 import {
   localize,
@@ -11,8 +11,8 @@ import {
   styleStatus,
 } from "./ui.mjs";
 
-const BLUEPRINT_AUDIT_CONTRACT_VERSION = "nimicoding.blueprint-audit.v1";
-const DEFAULT_REPORT_PATH = ".nimi/local/report/blueprint-equivalence-audit.json";
+const BLUEPRINT_AUDIT_CONTRACT_VERSION = "nimicoding.blueprint-audit.v2";
+const DEFAULT_REPORT_PATH = ".nimi/local/state/spec-generation/blueprint-equivalence-audit.json";
 
 async function collectFiles(rootPath, relativePrefix = "") {
   const info = await pathExists(rootPath);
@@ -186,12 +186,11 @@ async function compareRuleIds(blueprintAbsoluteRoot, canonicalAbsoluteRoot, pres
 }
 
 export async function buildBlueprintAuditPayload(projectRoot, options = {}) {
-  const specTreeModel = await loadSpecTreeModelContract(projectRoot);
   const blueprintReference = await loadBlueprintReference(projectRoot);
   const specGenerationInputs = await loadSpecGenerationInputsConfig(projectRoot);
 
   const canonicalRoot = options.canonicalRoot
-    ?? specTreeModel.canonicalRoot
+    ?? specGenerationInputs.canonicalTargetRoot
     ?? ".nimi/spec";
   const blueprintRoot = options.blueprintRoot
     ?? blueprintReference.root
@@ -246,7 +245,7 @@ export async function buildBlueprintAuditPayload(projectRoot, options = {}) {
   const reportPath = path.join(projectRoot, DEFAULT_REPORT_PATH);
   const nextSteps = [];
   if (missingDomains.length > 0 || kernelMarkdown.missing.length > 0 || kernelTables.missing.length > 0 || !indexPresent) {
-    nextSteps.push("Copy the missing blueprint structure into `/.nimi/spec/**` before attempting authority cutover.");
+    nextSteps.push("Resolve the missing blueprint structure under `/.nimi/spec/**` before claiming equivalence.");
   }
   if (domainGuides.missing.length > 0) {
     nextSteps.push("Thin and map domain guides only after kernel coverage is in place.");
@@ -263,12 +262,6 @@ export async function buildBlueprintAuditPayload(projectRoot, options = {}) {
     blueprintRoot,
     canonicalRoot,
     blueprintReference,
-    specTreeModel: {
-      ok: specTreeModel.ok,
-      profile: specTreeModel.profile,
-      canonicalRoot: specTreeModel.canonicalRoot,
-      authorityMode: specTreeModel.authorityMode,
-    },
     specGenerationInputs: {
       ok: specGenerationInputs.ok,
       mode: specGenerationInputs.mode,

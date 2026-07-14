@@ -8,7 +8,7 @@ body:
     id: component
     attributes:
       label: Component
-      description: cli / contracts / methodology / adapters / docs / ci
+      description: cli / contracts / methodology / spec / docs / ci
       placeholder: cli
     validations:
       required: true
