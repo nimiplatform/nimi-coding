@@ -1,4 +1,4 @@
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 export const PACKAGE_NAME = "@nimiplatform/nimi-coding";
 export const BOOTSTRAP_CONTRACT_ID = "nimicoding.bootstrap";
 export const BOOTSTRAP_CONTRACT_VERSION = 2;

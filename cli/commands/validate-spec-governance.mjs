@@ -1,4 +1,7 @@
+import path from "node:path";
+
 import { localize } from "../lib/ui.mjs";
+import { buildValidatorCliReport, validateSpecTree } from "../lib/validators.mjs";
 import { loadGovernanceConfig, requireProfile } from "../lib/internal/governance/config.mjs";
 import { runCommand } from "../lib/internal/governance/runner.mjs";
 
@@ -92,6 +95,23 @@ export async function runValidateSpecGovernance(args) {
   if (!scopeResolution.ok) {
     process.stderr.write(localize(scopeResolution.error, scopeResolution.error));
     return 2;
+  }
+
+  if (parsed.options.scope === "all") {
+    if (governance.config.specGovernance.canonicalRoot !== ".nimi/spec") {
+      process.stderr.write(localize(
+        "nimicoding validate-spec-governance refused: spec_governance.canonical_root must be .nimi/spec.\n",
+        "nimicoding validate-spec-governance 已拒绝：spec_governance.canonical_root 必须为 .nimi/spec。\n",
+      ));
+      return 2;
+    }
+    const canonicalRoot = path.resolve(process.cwd(), ".nimi/spec");
+    const treeReport = await validateSpecTree(canonicalRoot, { projectRoot: process.cwd() });
+    if (!treeReport.ok) {
+      const cliReport = buildValidatorCliReport("validate-spec-tree", canonicalRoot, treeReport);
+      process.stdout.write(`${JSON.stringify(cliReport, null, 2)}\n`);
+      return 1;
+    }
   }
 
   let failed = false;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Made `validate-spec-governance --scope all` fail closed on the canonical spec tree before running project-configured checks.
+
 ## 0.3.0
 
 - Hard-cut the package to methodology, spec construction, managed projections, and deterministic validation.

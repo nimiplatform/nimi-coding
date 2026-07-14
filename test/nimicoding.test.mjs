@@ -153,7 +153,7 @@ test("public CLI exposes the complete methodology and spec-governance surface", 
   assert.equal(unknown.code, 2);
   assert.match(unknown.stderr, /Unknown command/);
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
-  assert.equal(packageJson.version, "0.3.0");
+  assert.equal(packageJson.version, "0.3.1");
   assert.equal(packageJson.dependencies["@openai/codex-sdk"], undefined);
   assert.deepEqual(packageJson.files, [
     "bin",
@@ -433,6 +433,39 @@ test("repository governance profile dispatch remains deterministic", async () =>
   const ai = await runCli(root, ["validate-ai-governance", "--profile", "fixture", "--scope", "agents-freshness", "--json"]);
   assert.equal(ai.code, 0, ai.stdout || ai.stderr);
   assert.equal(JSON.parse(ai.stdout).ok, true);
+});
+
+test("repository governance all scope is gated by the canonical spec tree", async () => {
+  const root = await temporaryProject();
+  await bootstrapProject(root);
+  await writeValidSpec(root);
+  await writeFile(path.join(root, ".nimi/config/governance.yaml"), [
+    "profile_id: fixture",
+    "spec_governance:",
+    "  canonical_root: .nimi/spec",
+    "  validate_commands:",
+    "    contract: ['node --version']",
+    "ai_governance: {}",
+    "",
+  ].join("\n"), "utf8");
+
+  const valid = await runCli(root, ["validate-spec-governance", "--profile", "fixture", "--scope", "all"]);
+  assert.equal(valid.code, 0, valid.stdout || valid.stderr);
+
+  const generated = path.join(root, ".nimi/spec/project/kernel/generated/overview.md");
+  await mkdir(path.dirname(generated), { recursive: true });
+  await writeFile(generated, "# Unadmitted generated view\n", "utf8");
+  const invalid = await runCli(root, ["validate-spec-governance", "--profile", "fixture", "--scope", "all"]);
+  assert.equal(invalid.code, 1);
+  assert.match(invalid.stdout, /derived_view_under_product_authority_root/);
+
+  const governancePath = path.join(root, ".nimi/config/governance.yaml");
+  const governance = YAML.parse(await readFile(governancePath, "utf8"));
+  governance.spec_governance.canonical_root = "../outside";
+  await writeFile(governancePath, YAML.stringify(governance), "utf8");
+  const escapedRoot = await runCli(root, ["validate-spec-governance", "--profile", "fixture", "--scope", "all"]);
+  assert.equal(escapedRoot.code, 2);
+  assert.match(escapedRoot.stderr, /canonical_root must be \.nimi\/spec/);
 });
 
 test("spec placement fails closed for generated content under product authority", async () => {
