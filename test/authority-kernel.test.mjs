@@ -450,18 +450,55 @@ test("multi-unit YAML fails atomically for same-file/cross-file identity conflic
   assert.equal(await readFile(file, "utf8"), beforeFmt);
 });
 
-test("the bounded authoring exercise uses the current projected guide rather than internal contracts", async () => {
+test("the compact projected guide preserves required decisions and provides an executable lifecycle example", async () => {
   const root = await temporaryProject();
   assert.equal((await runCli(root, ["start", "--yes"])).code, 0);
   const guidePath = path.join(root, ".nimi", "methodology", "authority-authoring.yaml");
   const guideText = await readFile(guidePath, "utf8");
-  assert.match(guideText, /invalid_utf8/);
-  assert.match(guideText, /active_definition_sections: \[Meaning\]/);
-  assert.match(guideText, /active_rule_sections: \[Statement, Condition, Failure\]/);
-  assert.match(guideText, /line separator U\+2028, and paragraph separator U\+2029/);
-  assert.match(guideText, /authority context <path> <id> --max-units/);
-  assert.match(guideText, /missing fields point to their containing mapping or section's canonical insertion point/);
-  assert.doesNotMatch(guideText, /\.nimi\/contracts\/\*\*/);
+  assert(Buffer.byteLength(guideText, "utf8") <= 8 * 1024);
+  const guide = YAML.parse(guideText);
+  assert.equal(guide.authority_boundary.canonical_root, ".nimi/spec");
+  assert.deepEqual(guide.authority_boundary.sources, ["*.authority.yaml", "*.authority.md"]);
+  assert.match(guide.daily_workflow[0], /authority discover <path> <query>/);
+  assert.match(guide.daily_workflow[1], /authority query <path> <id>/);
+  assert.match(guide.daily_workflow[1], /context <path> <id> --max-units/);
+  assert.match(guide.daily_workflow.join(" "), /fmt <changed-file>.*check <complete-path>.*compile.*diff and impact/);
+  assert.deepEqual(guide.source_profiles.markdown.sections, {
+    active_definition: ["Meaning"],
+    active_rule: ["Statement", "Condition", "Failure"],
+    removed_unit: ["Removal reason"],
+  });
+  assert.deepEqual(guide.unit_shapes.active_rule.required, ["id", "kind", "owner", "lifecycle", "title", "modality", "scope", "statement", "condition", "failure", "relations"]);
+  assert.equal(guide.relation_rules.applies_to.includes("active definitions only"), true);
+  assert.equal(guide.relation_rules.supersedes.includes("removed unit of the same kind"), true);
+  assert.match(guide.change_workflow.boundaries.join(" "), /no partial result/);
+  assert.match(guide.change_workflow.boundaries.join(" "), /implementation, consumers, or tests are synchronized/);
+  assert.match(guide.disposition_authoring.empty_skeleton, /rules: \[\]/);
+  assert.match(guide.disposition_authoring.complete_example, /status: addressed/);
+  assert.deepEqual(guide.authority_boundary.do_not_read, ["complete_authority_corpus", "contracts", "package_internal_specs"]);
+
+  const exampleCorpus = path.join(root, "guide-example");
+  await mkdir(exampleCorpus);
+  const exampleFile = path.join(exampleCorpus, "lifecycle.authority.yaml");
+  await writeFile(exampleFile, guide.canonical_examples.complete_yaml_lifecycle, "utf8");
+  assert.equal((await runCli(root, ["authority", "fmt", exampleFile, "--json"])).code, 0);
+  const checked = await runCli(root, ["authority", "check", exampleCorpus, "--json"]);
+  assert.equal(checked.code, 0, checked.stderr || checked.stdout);
+  assert.equal(JSON.parse(checked.stdout).summary.units, 4);
+  const compiled = await runCli(root, ["authority", "compile", exampleCorpus, "--json"]);
+  assert.equal(compiled.code, 0, compiled.stderr || compiled.stdout);
+  assert.equal(JSON.parse(compiled.stdout).summary.units, 4);
+  const queried = await runCli(root, ["authority", "query", exampleCorpus, "rule.checkout-no-anonymous", "--max-bytes", "65536", "--json"]);
+  assert.equal(queried.code, 0, queried.stderr || queried.stdout);
+  assert.deepEqual(JSON.parse(queried.stdout).packet.units.map((unit) => unit.id), ["rule.checkout-no-anonymous"]);
+  const contextual = await runCli(root, ["authority", "context", exampleCorpus, "rule.checkout-no-anonymous", "--max-units", "4", "--max-bytes", "65536", "--json"]);
+  assert.equal(contextual.code, 0, contextual.stderr || contextual.stdout);
+  assert.deepEqual(JSON.parse(contextual.stdout).packet.units.map((unit) => unit.id), [
+    "definition.session",
+    "definition.session-v0",
+    "rule.checkout-no-anonymous",
+    "rule.checkout-no-anonymous-v0",
+  ]);
 
   const task = YAML.parse(await readFile(path.join(fixtures, "exercise", "task.yaml"), "utf8"));
   assert.deepEqual(task.allowed_inputs, ["projected_authority_guide", "task_authority", "diagnostics"]);

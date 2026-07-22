@@ -7,6 +7,8 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import YAML from "yaml";
+
 import { AGENTS_BEGIN, AGENTS_END, CLAUDE_BEGIN, CLAUDE_END } from "../cli/constants.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -158,10 +160,14 @@ test("fresh start installs only the compact guide, managed instructions, and ign
     assert.doesNotMatch(text, /`\/\.nimi\//);
     assert.match(text, /`\.nimi\/spec\/\*\*`/);
   }
-  const guide = await readFile(path.join(root, ".nimi/methodology/authority-authoring.yaml"), "utf8");
-  assert(Buffer.byteLength(guide, "utf8") < 32 * 1024);
-  assert.match(guide, /not complete task context/);
-  assert.match(guide, /does not prove implementation, consumers, or tests are synchronized/);
+  const guideText = await readFile(path.join(root, ".nimi/methodology/authority-authoring.yaml"), "utf8");
+  assert(Buffer.byteLength(guideText, "utf8") <= 8 * 1024);
+  const guide = YAML.parse(guideText);
+  assert.deepEqual(guide.authority_boundary.sources, ["*.authority.yaml", "*.authority.md"]);
+  assert.equal(guide.unit_shapes.active_definition.fixed.lifecycle, "active");
+  assert.equal(guide.unit_shapes.removed_tombstone.fixed.lifecycle, "removed");
+  assert.match(guide.daily_workflow.join(" "), /discover.*query.*context.*fmt.*check.*compile.*diff and impact/);
+  assert.equal(typeof guide.canonical_examples.complete_yaml_lifecycle, "string");
 });
 
 test("documented canonical gate rejects invalid authority and every non-canonical spec entry", async () => {
