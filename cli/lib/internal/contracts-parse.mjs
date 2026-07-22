@@ -124,7 +124,7 @@ export function parseSpecGenerationInputsConfig(text) {
     ok: hasExactFields(parsed, SPEC_GENERATION_INPUT_DOCUMENT_FIELDS)
       && hasExactFields(config, SPEC_GENERATION_INPUT_FIELDS)
       && parsed.version === 3
-      && String(parsed?.contract_ref ?? "") === ".nimi/contracts/spec-generation-inputs.schema.yaml"
+      && String(parsed?.contract_ref ?? "") === "package://@nimiplatform/nimi-coding/contracts/spec-generation-inputs.schema.yaml"
       && config?.mode === "class_filtered"
       && config?.canonical_target_root === ".nimi/spec"
       && docsInputs.length > 0

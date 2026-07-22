@@ -1,0 +1,10 @@
+format: nimicoding.authority/v1
+units:
+  - id: definition.session
+    kind: definition
+    owner: team.identity
+    owner: team.checkout
+    lifecycle: active
+    title: Session
+    meaning: Duplicate keys fail.
+    relations: []

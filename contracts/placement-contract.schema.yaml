@@ -5,8 +5,20 @@ contract:
   purpose: Bind each governed root to its allowed authority class.
 required_top_level_fields: [version, placement_rules, root_policy, forbidden_roots, fail_closed_cases]
 placement_rule_required_fields: [root_pattern, allowed_classes, owner, tracking_policy, requires_admission, validator_scope]
-shared_enum_ref: shared-enums.yaml
+shared_enum_ref: package://@nimiplatform/nimi-coding/contracts/shared-enums.yaml
 placement_rules:
+  - root_pattern: .nimi/spec/<domain>/**/*.authority.yaml
+    allowed_classes: [product_authority]
+    owner: product_domain
+    tracking_policy: tracked_required
+    requires_admission: domain_admission
+    validator_scope: product_authority
+  - root_pattern: .nimi/spec/<domain>/**/*.authority.md
+    allowed_classes: [product_authority]
+    owner: product_domain
+    tracking_policy: tracked_required
+    requires_admission: domain_admission
+    validator_scope: product_authority
   - root_pattern: .nimi/spec/<domain>/kernel/*.md
     allowed_classes: [product_authority]
     owner: product_domain
@@ -53,14 +65,38 @@ placement_rules:
     allowed_classes: [host_projection_anchor]
     owner: host_projection
     tracking_policy: tracked_only_with_explicit_admission
-    requires_admission: projection_edge
+    requires_admission: none
     validator_scope: host_overlay
-  - root_pattern: .nimi/{config,contracts,methodology}/**
+  - root_pattern: .nimi/methodology/authority-authoring.yaml
     allowed_classes: [nimicoding_managed_projection]
     owner: nimi_coding_package_projection
     tracking_policy: tracked_required
     requires_admission: nimicoding_start_or_sync_projection
     validator_scope: nimicoding_managed_projection
+  - root_pattern: .nimi/config/spec-generation-inputs.yaml
+    allowed_classes: [support_registry]
+    owner: product_host
+    tracking_policy: tracked_required
+    requires_admission: nimicoding_start_or_sync_projection
+    validator_scope: host_state_seed
+  - root_pattern: .nimi/contracts/domain-admission.schema.yaml
+    allowed_classes: [support_registry]
+    owner: product_host
+    tracking_policy: tracked_required
+    requires_admission: nimicoding_start_or_sync_projection
+    validator_scope: host_profile_override
+  - root_pattern: .nimi/config/spec-layout.yaml
+    allowed_classes: [support_registry]
+    owner: product_host
+    tracking_policy: tracked_only_with_explicit_admission
+    requires_admission: none
+    validator_scope: host_config
+  - root_pattern: .nimi/config/governance.yaml
+    allowed_classes: [support_registry]
+    owner: product_host
+    tracking_policy: tracked_only_with_explicit_admission
+    requires_admission: none
+    validator_scope: host_config
   - root_pattern: package://@nimiplatform/nimi-coding/{spec,methodology,contracts,config}/**
     allowed_classes: [methodology_authority, support_registry]
     owner: nimi_coding_package
@@ -113,7 +149,7 @@ forbidden_roots:
   methodology_authority: [".nimi/spec/**"]
   tracked_derived_projection: ["unadmitted:.nimi/spec/**/kernel/generated/**", "unadmitted:.nimi/spec/generated/**"]
 forbidden_root_exceptions:
-  nimicoding_managed_projection: [".nimi/methodology/**", ".nimi/contracts/**", ".nimi/config/**"]
+  nimicoding_managed_projection: [".nimi/methodology/authority-authoring.yaml"]
 fail_closed_cases:
   - root_has_no_matching_placement_rule
   - surface_class_not_allowed_for_root

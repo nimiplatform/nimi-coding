@@ -1,0 +1,11 @@
+format: nimicoding.authority/v1
+units:
+  - id: definition.alias
+    kind: definition
+    owner: &owner team.identity
+    lifecycle: active
+    title: Alias source
+    meaning: YAML aliases are outside the canonical profile.
+    relations:
+      - type: supersedes
+        target: *owner

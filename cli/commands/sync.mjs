@@ -89,6 +89,7 @@ function formatHumanReport(result) {
     lines.push(`  missing_package_canonical: ${result.summary.missing_package_canonical}`);
     lines.push(`  missing_host_state_seed: ${result.summary.missing_host_state_seed}`);
     lines.push(`  drifted_package_canonical: ${result.summary.drifted_package_canonical}`);
+    lines.push(`  unexpected_unadmitted_path: ${result.summary.unexpected_unadmitted_path}`);
   }
 
   const noteworthy = result.results.filter((entry) => entry.status !== SYNC_RESULT_STATUS.IN_SYNC);
@@ -103,8 +104,8 @@ function formatHumanReport(result) {
   if (result.mode === SYNC_MODE.CHECK && !result.ok) {
     lines.push("");
     lines.push(localize(
-      "FAIL: package_canonical drift or missing seed detected; run `nimicoding sync --apply` to refresh.",
-      "FAIL：检测到 package_canonical drift 或缺失 seed；执行 `nimicoding sync --apply` 以刷新。",
+      "FAIL: package projection drift, missing seed, or unexpected/unadmitted managed-surface path detected.",
+      "FAIL：检测到 package projection drift、缺失 seed 或 unexpected/unadmitted managed-surface path。",
     ));
   }
 

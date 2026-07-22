@@ -1,0 +1,9 @@
+format: nimicoding.authority/v1
+units:
+  - id: definition.order
+    kind: definition
+    owner: team.orders
+    lifecycle: active
+    title: Order
+    meaning: A persisted purchase commitment created from an accepted checkout request.
+    relations: []

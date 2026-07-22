@@ -1,0 +1,161 @@
+version: 1
+id: nimicoding.authority-authoring
+purpose: Write explicit project authority that nimicoding can format, check, and compile without inference.
+authority_boundary:
+  canonical_root: .nimi/spec
+  rule: Project authority is authored by the project; nimicoding validates and derives private logical products only.
+required_workflow:
+  - Choose product meaning before writing. Never ask the formatter to invent an ID, owner, scope, condition, failure, or relation.
+  - Use a .authority.yaml closed document container for one or more explicit units, or one .authority.md file for one unit; file organization never defines unit identity.
+  - Run nimicoding authority fmt on each changed file.
+  - Run nimicoding authority check on the complete authority directory so every relation can resolve.
+  - Read each diagnostic's primary range, related ranges, reason, and repair category; choose values only from task or product authority.
+  - Compile only after check succeeds.
+context_workflow:
+  - Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one exact admitted unit.
+  - Use nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json when the task needs the root's declared outgoing applies_to and supersedes dependencies.
+  - Both commands require an explicit UTF-8 packet byte budget; context additionally requires a unit budget. AUTH_CONTEXT_BUDGET returns no partial packet.
+  - Treat AUTH_QUERY_NOT_FOUND, compiler diagnostics, and AUTH_CONTEXT_BUDGET as hard failures; never continue with guessed or partial context.
+  - Read only the returned packet, task authority, this guide, and diagnostics; do not wildcard-read .nimi/contracts or the complete authority corpus.
+  - Context is read-only derived data. It never replaces or modifies product authority under .nimi/spec.
+change_workflow:
+  - Compare two complete canonical authority inputs with nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> --json; formatting/profile-only differences produce no semantic changes.
+  - Use nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> --json to follow only explicit reverse applies_to and supersedes dependencies.
+  - Both commands require a UTF-8 byte budget for the complete compact semantic payload. AUTH_DIFF_BUDGET or AUTH_IMPACT_BUDGET returns null diff/impact; never continue with partial output.
+  - Every impacted active rule requires addressed evidence for each before/after scope consumer and one test obligation. Missing or extra dispositions fail; never infer completion.
+  - Keep disposition evidence outside product authority, normally under .nimi/local; it records declared review evidence and never changes source semantics.
+disposition_authoring:
+  discovery:
+    - First write the empty skeleton and run impact to obtain the exact obligations from the failed result.
+    - Then replace the empty rules list with one exact entry per impacted active rule, using only real project-declared evidence; rerun impact with the same explicit byte budget.
+    - Evidence is required non-empty declared text. The command does not infer completion, check paths, execute tests, or validate evidence truth.
+  empty_skeleton: |
+    format: nimicoding.authority-impact-dispositions/v1
+    rules: []
+  complete_example: |
+    format: nimicoding.authority-impact-dispositions/v1
+    rules:
+      - id: rule.checkout-session
+        consumers:
+          - scope: api.checkout
+            status: addressed
+            evidence: src/checkout/session-handler.ts
+        test:
+          status: addressed
+          evidence: tests/checkout-session.test.ts
+yaml_container:
+  shape: The top-level mapping contains exactly format and units; units is a non-empty sequence containing one or more closed unit mappings.
+  format: Must equal nimicoding.authority/v1; fmt refuses a missing or different document format.
+  identity_boundary: Every unit declares its own ID. Never derive identity from a file name, array position, container, move, split, order, or regroup.
+  implicit_semantics: Namespace, defaults, inheritance, imports, and file-level owner are forbidden.
+  order: Source order may be retained for author reading but is non-semantic; compiled units are ordered by stable ID.
+common_fields:
+  id: Stable dot-separated lower-case identity; each segment starts and ends alphanumeric, and a removed ID is never reused.
+  kind: rule or definition; fmt refuses a missing or unknown kind.
+  owner: Exactly one dot-separated lower-case accountable owner identity.
+  lifecycle: active or removed; fmt refuses a missing or unknown lifecycle.
+  title: Non-normative plain-text display label; it never changes rule or relation semantics.
+  relations: May be omitted in a draft. When present, every item contains exactly non-empty string type and target fields; admitted units write [] when no edge exists.
+text_values:
+  fields: [title, meaning, statement, condition, failure, reason]
+  rule: Each value is a non-empty trimmed well-formed Unicode scalar sequence on one line.
+  line_breaks: Reject LF U+000A, VT U+000B, FF U+000C, CR U+000D, NEL U+0085, line separator U+2028, and paragraph separator U+2029, including values produced by YAML escapes.
+  formatter: fmt may preserve and canonically spell a parsed invalid text value, but reports semantic_status not_evaluated; check and compile reject it.
+active_definition:
+  required: [meaning]
+  meaning: Normative definition content in one plain-text line.
+  forbidden: [modality, scope, statement, condition, failure, reason]
+  relations:
+    supersedes: Optional edge to one removed definition.
+active_rule:
+  required: [modality, scope, statement, condition, failure]
+  modality: must or must_not; both require every listed field.
+  scope: Non-empty unique list of dot-separated product surfaces.
+  statement: Normative requirement or prohibition in one plain-text line.
+  condition: Write the actual condition; use the literal text Always. only when unconditional.
+  failure: State externally observable failure behavior; never write pseudo-success or silent fallback.
+  forbidden: [meaning, reason]
+  relations:
+    applies_to: One or more edges to active definitions.
+    supersedes: Optional edge to one removed rule.
+removed_unit:
+  required: [reason]
+  reason: Non-normative lifecycle rationale; it cannot replace normative content.
+  forbidden: [meaning, modality, scope, statement, condition, failure]
+  relations: Zero or one supersedes edge to an older removed same-kind unit, preserving a linear lineage.
+relation_rules:
+  - Every target resolves by exact ID in the same checked input set.
+  - applies_to is active rule to active definition and is required for every active rule.
+  - supersedes is active-or-removed unit to removed same-kind unit, with at most one edge in each direction.
+  - Missing or extra item fields fail fmt/check/compile; unknown string types may format but fail check/compile.
+  - Duplicate complete edges may format but fail check/compile.
+  - Self edges, cycles, dangling targets, type mismatches, and inferred relations fail check/compile.
+profiles:
+  yaml:
+    shape: One closed document container with exact format and non-empty units; every units item is a closed authority unit mapping without a repeated format field.
+    reject: [legacy_top_level_single_unit_mapping, empty_units, invalid_utf8, duplicate_keys, aliases, anchors, merge_keys, tags, directives, complex_keys, comments]
+  markdown:
+    shape: One authority unit per file; this bounded profile does not define multi-unit Markdown.
+    shared_with_yaml: Only the restricted YAML lexical and syntax rules are shared; the Markdown and YAML document field sets are distinct.
+    front_matter_fields: [format, id, kind, owner, lifecycle, modality, scope, relations]
+    front_matter: Uses the restricted YAML lexical and syntax rules, including invalid UTF-8, comment, and duplicate-key rejection; units is not a Markdown front matter field.
+    title: One level-one plain-text title; it may be absent in a draft and fmt never invents it.
+    active_definition_sections: [Meaning]
+    active_rule_sections: [Statement, Condition, Failure]
+    removed_unit_sections: [Removal reason]
+    section_rule: Each present section has exactly one plain-text line; fmt restores the listed section order.
+    reject: [prose_outside_known_slots, unknown_or_duplicate_headings, ordered_or_unordered_lists, blockquotes, thematic_breaks, fenced_code, html, links, reference_syntax, emphasis, comments, trailing_content]
+formatter_boundary:
+  - fmt evaluates source structure and formatting only; success reports semantic_status not_evaluated.
+  - YAML document format and every unit's kind and lifecycle are structural discriminants and must be valid before fmt; Markdown also carries format in front matter.
+  - Other missing admitted fields remain absent in draft-canonical output; fmt creates no key, heading, value, or relation.
+  - relations may be absent, but each present item must have complete type and target strings before deterministic sorting.
+  - fmt accepts one file only and writes it atomically; check and compile may read a complete directory.
+canonical_examples:
+  definition_yaml: |
+    format: nimicoding.authority/v1
+    units:
+      - id: definition.session
+        kind: definition
+        owner: team.identity
+        lifecycle: active
+        title: Session
+        meaning: A server-issued identity context presented with a protected request.
+        relations: []
+  must_not_rule_markdown: |
+    ---
+    format: nimicoding.authority/v1
+    id: rule.checkout-no-anonymous
+    kind: rule
+    owner: team.checkout
+    lifecycle: active
+    modality: must_not
+    scope:
+      - api.checkout
+    relations:
+      - type: applies_to
+        target: definition.session
+    ---
+    # Anonymous checkout is prohibited
+
+    ## Statement
+
+    Checkout creates an order without a valid session.
+
+    ## Condition
+
+    Always.
+
+    ## Failure
+
+    Reject the request before creating an order.
+fail_closed:
+  - fmt success does not admit authority.
+  - check and compile reject non-canonical bytes, incomplete semantics, illegal lifecycle, identity conflicts, and invalid typed relations.
+  - compile emits no partial result and no public IR.
+  - Derived outputs are disposable and never product authority.
+diagnostics:
+  location: Ranges are 1-based Unicode-scalar half-open ranges; missing fields point to their containing mapping or section's canonical insertion point.
+  conflicts: The primary diagnostic carries sorted related locations for other declarations or edges.
+  repair: Names the required decision category and never proposes product-semantic values.
+  prohibition: Do not bypass diagnostics with defaults, inference, fallback data, or edits to projected/internal contracts.

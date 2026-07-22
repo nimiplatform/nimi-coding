@@ -1,0 +1,6 @@
+{
+  "code": "AUTH_FIELD_REQUIRED",
+  "pointer": "/failure",
+  "reason": "active rule requires externally observable failure semantics",
+  "repair": "state the failure behavior from task authority; do not infer or default it"
+}

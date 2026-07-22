@@ -1,0 +1,8 @@
+format: nimicoding.authority/v1
+id: definition.legacy-shape
+kind: definition
+owner: team.identity
+lifecycle: active
+title: Rejected legacy shape
+meaning: A top-level unit mapping is no longer canonical YAML authority.
+relations: []

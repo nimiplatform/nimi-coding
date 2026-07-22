@@ -2,15 +2,11 @@ import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises
 import path from "node:path";
 
 import {
-  BOOTSTRAP_CONTRACT_ID,
-  BOOTSTRAP_CONTRACT_VERSION,
   LOCAL_GITIGNORE_ENTRIES,
-  PACKAGE_NAME,
   REQUIRED_LOCAL_DIRS,
 } from "../constants.mjs";
 import { createBootstrapSeedFileMap } from "../seeds/bootstrap.mjs";
 import { appendGitignoreEntries, pathExists, readTextIfFile } from "./fs-helpers.mjs";
-import { readYamlScalar } from "./yaml-helpers.mjs";
 
 export async function previewBootstrapWrites(projectRoot) {
   const missingFiles = [];
@@ -169,51 +165,5 @@ export async function removeManagedBootstrapFiles(projectRoot) {
     removedFiles: state.removableFiles,
     removedDirs,
     preservedModifiedFiles: state.preservedModifiedFiles,
-  };
-}
-
-export async function inspectBootstrapCompatibility(projectRoot) {
-  const bootstrapConfigPath = path.join(projectRoot, ".nimi", "config", "bootstrap.yaml");
-  const bootstrapConfigText = await readTextIfFile(bootstrapConfigPath);
-
-  if (!bootstrapConfigText) {
-    return {
-      status: "missing",
-      initializedBy: null,
-      contractId: null,
-      contractVersion: null,
-    };
-  }
-
-  const initializedBy = readYamlScalar(bootstrapConfigText, "initialized_by");
-  const contractId = readYamlScalar(bootstrapConfigText, "bootstrap_contract");
-  const contractVersion = readYamlScalar(bootstrapConfigText, "bootstrap_contract_version");
-
-  if (initializedBy !== PACKAGE_NAME) {
-    return {
-      status: "unsupported",
-      initializedBy,
-      contractId,
-      contractVersion,
-    };
-  }
-
-  if (
-    contractId !== BOOTSTRAP_CONTRACT_ID
-    || contractVersion !== String(BOOTSTRAP_CONTRACT_VERSION)
-  ) {
-    return {
-      status: "unsupported",
-      initializedBy,
-      contractId,
-      contractVersion,
-    };
-  }
-
-  return {
-    status: "supported",
-    initializedBy,
-    contractId,
-    contractVersion,
   };
 }

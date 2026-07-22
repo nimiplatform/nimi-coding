@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   SPEC_GENERATION_AUDIT_CONTRACT_REF,
@@ -30,8 +31,10 @@ import {
   isSourceRefWithinDeclaredRoots,
 } from "./validators-spec-helpers.mjs";
 
-async function loadRequiredFiles(projectRoot) {
-  const text = await readTextIfFile(path.join(projectRoot, ".nimi", "methodology", "spec-reconstruction.yaml"));
+const PACKAGE_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+
+async function loadRequiredFiles() {
+  const text = await readTextIfFile(path.join(PACKAGE_ROOT, "methodology", "spec-reconstruction.yaml"));
   const parsed = parseYamlText(text);
   return Array.isArray(parsed?.reconstruction?.target_tree_shape?.minimal_required_outputs)
     ? parsed.reconstruction.target_tree_shape.minimal_required_outputs.map(String)
@@ -106,6 +109,9 @@ export async function validateSpecTree(rootPath, options = {}) {
     validateProjectionEdges(projectRoot, { rootRef }),
     validateGuidanceBodies(projectRoot, { rootRef }),
   ]);
+  if ((reports[0]?.summary?.by_surface_class?.product_authority ?? 0) === 0) {
+    errors.push("missing required canonical surface: product_authority");
+  }
   for (const report of reports) {
     for (const error of report.errors ?? []) {
       if (!errors.includes(error)) errors.push(error);

@@ -1,3 +1,4 @@
+import { runAuthority } from "./commands/authority.mjs";
 import { runBlueprintAudit } from "./commands/blueprint-audit.mjs";
 import { runClassifySpecTree } from "./commands/classify-spec-tree.mjs";
 import { runClear } from "./commands/clear.mjs";
@@ -21,6 +22,7 @@ import { VERSION } from "./constants.mjs";
 import { configureCliUi, localize, parseGlobalUiOptions } from "./lib/ui.mjs";
 
 const COMMANDS = {
+  authority: runAuthority,
   start: runStart,
   sync: runSync,
   clear: runClear,

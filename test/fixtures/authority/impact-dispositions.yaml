@@ -1,0 +1,10 @@
+format: nimicoding.authority-impact-dispositions/v1
+rules:
+  - id: rule.checkout-session
+    consumers:
+      - scope: api.checkout
+        status: addressed
+        evidence: tests/checkout-session.test.mjs
+    test:
+      status: addressed
+      evidence: tests/checkout-session.test.mjs

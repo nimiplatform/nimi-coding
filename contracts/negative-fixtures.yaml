@@ -10,7 +10,7 @@ fixtures:
     setup: .nimi/spec/_meta/spec-generation-audit.yaml
     expected_failure: spec_generation_state_under_spec
   - id: package-contract-promoted-to-spec
-    setup: .nimi/contracts/surface-taxonomy.schema.yaml copied under .nimi/spec/project/kernel
+    setup: package://@nimiplatform/nimi-coding/contracts/surface-taxonomy.schema.yaml copied under .nimi/spec/project/kernel
     expected_failure: package_methodology_under_host_spec
   - id: unknown-domain
     setup: .nimi/spec/unadmitted/kernel/index.md

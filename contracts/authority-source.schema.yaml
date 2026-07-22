@@ -1,0 +1,50 @@
+version: 1
+contract:
+  id: nimicoding.authority-source.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.authority/v1
+file_suffixes: [.authority.yaml, .authority.md]
+yaml_document:
+  allowed_fields: [format, units]
+  required_fields: [format, units]
+  units: non_empty_sequence_of_closed_authority_unit_mappings
+  unit_format_field: forbidden
+  unit_identity: explicit_and_independent_of_file_name_source_index_move_order_or_regroup
+  source_order: non_semantic
+  legacy_top_level_single_unit_mapping: rejected
+markdown_document:
+  units_per_file: 1
+identifier_pattern: '^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$'
+kinds: [rule, definition]
+lifecycles: [active, removed]
+modalities: [must, must_not]
+text_values:
+  fields: [title, meaning, statement, condition, failure, reason]
+  unicode: well_formed_scalar_sequence
+  non_empty: true
+  trim: no_leading_or_trailing_whitespace
+  line_break_code_points: [U+000A, U+000B, U+000C, U+000D, U+0085, U+2028, U+2029]
+fields:
+  yaml_document: [format, units]
+  unit_common: [id, kind, owner, lifecycle, title, relations]
+  active_definition_required: [meaning]
+  active_rule_required: [modality, scope, statement, condition, failure]
+  removed_required: [reason]
+  yaml_unit_allowed: [id, kind, owner, lifecycle, title, meaning, modality, scope, statement, condition, failure, reason, relations]
+  markdown_frontmatter_allowed: [format, id, kind, owner, lifecycle, modality, scope, relations]
+relation_item_fields: [type, target]
+relation_types:
+  applies_to:
+    source: active_rule
+    target: active_definition
+    minimum_outgoing: 1
+  supersedes:
+    source: active_or_removed_unit
+    target: removed_same_kind
+    maximum_outgoing: 1
+    maximum_incoming: 1
+ordering:
+  unit: id
+  scope: lexical
+  relation: [type, target]

@@ -1,64 +1,15 @@
-policy_id: nimicoding.seed-projection.v1
-description: |
-  Single source of truth for how nimi-coding package source is projected into
-  a host project's .nimi/** bootstrap surface. Every entry under the declared
-  source dirs is projected unless excluded; per-path ownership overrides
-  control whether the projected file stays package-canonical (refresh on sync,
-  drift is an error) or only carries the initial seed (host owns drift).
-
+policy_id: nimicoding.seed-projection.v2
+description: Exact deny-by-default downstream projection allowlist.
 projections:
-  - source_dir: config
-    output_dir: .nimi/config
-  - source_dir: contracts
-    output_dir: .nimi/contracts
-  - source_dir: methodology
-    output_dir: .nimi/methodology
-
-default_ownership: package_canonical
-
-ownership_semantics:
-  package_canonical:
-    initial_seed: true
-    refresh_on_sync: true
-    drift_is_error: true
-    description: |
-      Package source is canonical truth. nimicoding sync --apply rewrites
-      drifted host copies. nimicoding sync --check exits non-zero on any
-      drift or missing entry. doctor performs byte comparison.
-  host_state_seed:
-    initial_seed: true
-    refresh_on_sync: false
-    drift_is_error: false
-    description: |
-      Package ships an initial seed, but host owns the canonical content
-      after first install. nimicoding sync --apply only writes when the
-      host file is missing. Drift never fails sync or doctor.
-  host_profile_override:
-    initial_seed: true
-    refresh_on_sync: false
-    drift_is_error: false
-    description: |
-      Package ships the generic default, but an admitted host profile may own
-      the canonical content after bootstrap. nimicoding sync --apply only
-      writes when the host file is missing. Drift never fails sync or doctor.
-
-ownership_overrides:
-  - path: .nimi/config/spec-generation-inputs.yaml
+  - source: config/spec-generation-inputs.yaml
+    output: .nimi/config/spec-generation-inputs.yaml
     ownership: host_state_seed
-    reason: |
-      spec-generation-inputs carries host-specific reconstruction inputs
-      (code_roots, docs_roots, human_note_paths, blueprint refs). Package
-      only seeds the initial template; once the host populates real input
-      paths, sync --apply must not overwrite them.
-  - path: .nimi/contracts/domain-admission.schema.yaml
+    downstream_consumer: project team edits declared reconstruction inputs
+  - source: contracts/domain-admission.schema.yaml
+    output: .nimi/contracts/domain-admission.schema.yaml
     ownership: host_profile_override
-    reason: |
-      domain-admission is host-profile-specific. The package owns the generic
-      default project skeleton, while a product host such as Nimi owns its
-      admitted product domain list.
-  - path: .nimi/methodology/spec-reconstruction.yaml
-    ownership: host_profile_override
-    reason: |
-      spec-reconstruction declares host-specific required output domains and
-      generation shape. The package owns the generic default project skeleton,
-      while a product host may own a more specific reconstruction profile.
+    downstream_consumer: project profile owns admitted domain declarations
+  - source: methodology/authority-authoring.yaml
+    output: .nimi/methodology/authority-authoring.yaml
+    ownership: package_canonical
+    downstream_consumer: normal project AI reads the compact authoring guide

@@ -1,0 +1,48 @@
+version: 1
+spec:
+  id: nimicoding.authority-context.v1
+  owner: nimi-coding
+  status: active
+product_claim: exact_ID_returns_complete_bounded_traceable_relevant_context_or_fails
+source: admitted_package_private_AuthorityIR_and_SourceMap_only
+commands:
+  query:
+    syntax: nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]
+    result: exactly_one_unit_packet
+    budget: explicit_UTF-8_packet_bytes_required
+  context:
+    syntax: nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]
+    budget: explicit_unit_and_UTF-8_packet_bytes_required
+packet:
+  format: nimicoding.authority-context/v1
+  fields: [root, closure, units, sourceMap]
+  unit_order: lexical_ID
+  source_paths: relative_to_input_root_when_inside_it
+  schemas_included: false
+  unrelated_units_outside_closure_included: false
+  corpus_note: A legitimate closure may coincidentally include every corpus unit; no unit outside the closure is attached.
+closure:
+  direction: outgoing_recursive
+  relation_categories: [applies_to, supersedes]
+  rationale:
+    applies_to: Include definitions explicitly required to interpret a rule.
+    supersedes: Include the declared older lineage required to interpret lifecycle relations.
+  incoming_relations: excluded_as_unrelated_to_the_root_declared_dependencies
+fail_closed:
+  unknown_exact_ID: AUTH_QUERY_NOT_FOUND
+  ambiguous_ID: compiler_identity_diagnostic
+  invalid_source_or_graph: compiler_diagnostic
+  unit_or_UTF-8_packet_byte_budget_overflow: AUTH_CONTEXT_BUDGET_without_packet
+  partial_packet: forbidden
+determinism:
+  repeated_semantic_output: identical
+  packet_units: lexical_ID
+  canonical_packet_bytes: UTF-8_byte_length_of_compact_JSON.stringify_packet_without_trailing_newline
+  tokenizer_dependency: forbidden
+  source_map: every_packet_unit_leaf_traceable
+boundaries:
+  writes_authority: false
+  durable_artifacts: none
+  exposes_AuthorityIR_as_package_export: false
+  reads_projected_contracts: false
+  storage_search_diff_impact_AI_execution: not_admitted

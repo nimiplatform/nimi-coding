@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 
 import { pathExists } from "../fs-helpers.mjs";
+import { loadSeedPolicy } from "../../seeds/bootstrap.mjs";
 import { parseYamlText } from "../yaml-helpers.mjs";
 import { isPlainObject } from "../value-helpers.mjs";
 
 const SURFACE_RESULT_CONTRACT = "nimicoding.surface-validator-result.v2";
+const PACKAGE_SPEC_LAYOUT_REF = "package://@nimiplatform/nimi-coding/contracts/spec-layout.schema.yaml";
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -25,6 +27,11 @@ const CONTRACT_REFS = {
 const TEXT_RULE_BODY_PATTERN = /\bMUST(?:\s+NOT)?\b|\bmust\s+not\b|必须|不得|fail(?:s|ed)?\s+closed/i;
 const PRODUCT_RULE_DEFINITION_PATTERN = /^\s*(?:[-*]\s*)?(?:rule_id|rule id)\s*[:|]/im;
 const GENERATED_REF_PATTERN = /\.nimi\/spec\/[^)\s]+\/kernel\/generated\/|\.nimi\/spec\/generated\/|kernel\/generated\//;
+const EXACT_HOST_CONFIG_CLASSES = new Map([
+  [".nimi/config/host-overlay.yaml", "host_projection_anchor"],
+  [".nimi/config/spec-layout.yaml", "support_registry"],
+  [".nimi/config/governance.yaml", "support_registry"],
+]);
 
 function toPosix(value) {
   return value.split(path.sep).join(path.posix.sep);
@@ -65,6 +72,8 @@ async function loadSurfaceContracts(projectRoot) {
   if (hostDomainAdmission) {
     contracts.domainAdmission = hostDomainAdmission;
   }
+  const seedPolicy = await loadSeedPolicy();
+  contracts.seedProjections = new Map(seedPolicy.projections.map((entry) => [entry.outputRelativePath, entry]));
   const hostSpecLayout = await readHostYamlAt(projectRoot, ".nimi/config/spec-layout.yaml");
   contracts.hostSpecLayout = parseHostSpecLayout(
     hostSpecLayout,
@@ -139,7 +148,7 @@ function parseHostSpecLayout(hostConfig, schemaContract, tableFamilyContract) {
     (tableFamilyContract.data?.table_families ?? []).map((entry) => String(entry.table_family)),
   );
 
-  if (parsed?.version !== 1 || parsed?.contract_ref !== ".nimi/contracts/spec-layout.schema.yaml" || !isPlainObject(layout)) {
+  if (parsed?.version !== 1 || parsed?.contract_ref !== PACKAGE_SPEC_LAYOUT_REF || !isPlainObject(layout)) {
     errors.push("invalid_spec_layout_config: .nimi/config/spec-layout.yaml");
   }
   if (!hasExactFields(parsed, requiredDocumentFields)) {
@@ -404,6 +413,10 @@ function isMarkdownRef(ref) {
   return /\.md$/i.test(ref);
 }
 
+function isCanonicalAuthorityRef(ref) {
+  return ref.endsWith(".authority.yaml") || ref.endsWith(".authority.md");
+}
+
 function tableFamilyContractMap(contracts) {
   const families = Array.isArray(contracts.tableFamily.data?.table_families)
     ? contracts.tableFamily.data.table_families
@@ -451,6 +464,13 @@ function isHostInstructionRef(ref, contracts) {
 }
 
 function classifyRef(ref, text, parsedYaml, contracts) {
+  const seedProjection = contracts.seedProjections.get(ref);
+  if (seedProjection) {
+    return seedProjection.ownership === "package_canonical" ? "nimicoding_managed_projection" : "support_registry";
+  }
+  if (EXACT_HOST_CONFIG_CLASSES.has(ref)) {
+    return EXACT_HOST_CONFIG_CLASSES.get(ref);
+  }
   if (ref.startsWith(".nimi/spec/future/")) {
     return "unclassified";
   }
@@ -474,6 +494,9 @@ function classifyRef(ref, text, parsedYaml, contracts) {
   }
   if (ref === ".nimi/spec/product-scope.yaml") {
     return "methodology_authority";
+  }
+  if (ref.startsWith(".nimi/spec/") && domainForSpecRef(ref) && isCanonicalAuthorityRef(ref)) {
+    return "product_authority";
   }
   if (ref.startsWith(".nimi/spec/") && ref.includes("/kernel/tables/") && isYamlRef(ref)) {
     if (isPlainObject(parsedYaml) && parsedYaml.table_family === "support_registry") {
@@ -509,11 +532,8 @@ function classifyRef(ref, text, parsedYaml, contracts) {
   if (ref.startsWith(".nimi/local/") || ref.startsWith(".local/")) {
     return "operational_local_artifact";
   }
-  if (ref.startsWith(".nimi/contracts/") || ref.startsWith(".nimi/methodology/")) {
-    return "nimicoding_managed_projection";
-  }
-  if (ref.startsWith(".nimi/config/")) {
-    return ref === ".nimi/config/host-overlay.yaml" ? "host_projection_anchor" : "nimicoding_managed_projection";
+  if (ref.startsWith(".nimi/contracts/") || ref.startsWith(".nimi/methodology/") || ref.startsWith(".nimi/config/")) {
+    return "unclassified";
   }
   if (ref.startsWith("package://@nimiplatform/nimi-coding/")) {
     return "methodology_authority";
@@ -579,10 +599,14 @@ function targetRootFor(surfaceClass, ref) {
   return firstPathSegment(ref);
 }
 
-function ownerFor(surfaceClass, ref) {
+function ownerFor(surfaceClass, ref, contracts = null) {
+  const seedProjection = contracts?.seedProjections?.get(ref);
+  if (seedProjection) return seedProjection.ownership === "package_canonical" ? "nimi-coding" : "product_host";
+  if (EXACT_HOST_CONFIG_CLASSES.has(ref)) return ref === ".nimi/config/host-overlay.yaml" ? "host_projection" : "product_host";
   if (surfaceClass === "methodology_authority" || surfaceClass === "nimicoding_managed_projection") {
     return "nimi-coding";
   }
+  if (surfaceClass === "unclassified") return "unresolved";
   if (surfaceClass === "derived_view") {
     return "generator";
   }
@@ -783,7 +807,7 @@ async function buildInventory(projectRoot, options = {}) {
       target_class: surfaceClass,
       disposition: dispositionFor(ref, surfaceClass, entryErrors),
       target_root: targetRootFor(surfaceClass, ref),
-      owner: ownerFor(surfaceClass, ref),
+      owner: ownerFor(surfaceClass, ref, contracts),
       required_confirmation: requiredConfirmation,
       ambiguity: ambiguityFor(requiredConfirmation, surfaceClass),
       evidence: entryErrors.length > 0 ? entryErrors : [`classified_as:${surfaceClass}`],
@@ -1025,12 +1049,8 @@ export async function validateProjectionEdges(projectRoot, options = {}) {
   const errors = [];
   const edgeTargets = new Set((contracts.projectionEdge.data?.projection_edges ?? []).map((entry) => String(entry.target_ref)));
   const anchorRef = ".nimi/spec/_meta/nimi-coding-admission-anchor.yaml";
-  const overlayRef = ".nimi/config/host-overlay.yaml";
   if (entries.some((entry) => entry.source_path === anchorRef) && !edgeTargets.has(anchorRef)) {
     addError(errors, "missing_projection_edge_for_anchor", anchorRef);
-  }
-  if (entries.some((entry) => entry.source_path === overlayRef) && !edgeTargets.has(overlayRef)) {
-    addError(errors, "missing_projection_edge_for_overlay", overlayRef);
   }
   for (const entry of entries) {
     if (entry.current_inferred_class === "methodology_authority" && entry.source_path.startsWith(".nimi/spec/")) {

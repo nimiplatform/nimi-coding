@@ -19,11 +19,7 @@ spec_tree_model:
       authority_class: active_product
       allowed_surface_classes: [product_authority, product_authority_table, thin_guidance, support_registry]
   required_files:
-    surface_taxonomy_v2:
-      - .nimi/spec/INDEX.md
-      - .nimi/spec/project/kernel/index.md
-      - .nimi/spec/project/kernel/core-rules.md
-      - .nimi/spec/project/kernel/tables/rule-catalog.yaml
+    surface_taxonomy_v2: []
   generated_pipelines:
     - id: spec_human_doc
       input_contract_ref: package://@nimiplatform/nimi-coding/contracts/spec-generation-inputs.schema.yaml

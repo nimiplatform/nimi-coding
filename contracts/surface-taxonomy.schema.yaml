@@ -5,12 +5,12 @@ contract:
   purpose: Define authority, support, generated, evidence, and local surfaces before spec validation.
 required_top_level_fields: [version, taxonomy, class_enum, authority_rank_enum, tracking_policy_enum, mutability_enum, semantic_constraints]
 class_required_fields: [class_id, owner_kind, authority_rank, allowed_roots, tracking_policy, mutability, reference_rules, promotion_rules, fail_closed_cases]
-shared_enum_ref: shared-enums.yaml
+shared_enum_ref: package://@nimiplatform/nimi-coding/contracts/shared-enums.yaml
 taxonomy:
   - class_id: product_authority
     owner_kind: product_domain
     authority_rank: active_product_canonical
-    allowed_roots: [".nimi/spec/<domain>/kernel/*.md"]
+    allowed_roots: [".nimi/spec/<domain>/**/*.authority.yaml", ".nimi/spec/<domain>/**/*.authority.md", ".nimi/spec/<domain>/kernel/*.md"]
     tracking_policy: tracked_required
     mutability: human_admitted
     reference_rules: [may_reference_product_authority_table, may_reference_thin_guidance]
@@ -100,7 +100,7 @@ taxonomy:
   - class_id: nimicoding_managed_projection
     owner_kind: nimi_coding_package_projection
     authority_rank: package_projection_support
-    allowed_roots: [".nimi/methodology/**", ".nimi/contracts/**", ".nimi/config/**"]
+    allowed_roots: [".nimi/methodology/authority-authoring.yaml"]
     tracking_policy: tracked_required
     mutability: package_projected
     reference_rules: [may_be_read_as_project_local_context, must_not_override_product_authority]
@@ -118,7 +118,7 @@ taxonomy:
   - class_id: support_registry
     owner_kind: package_or_product_owner
     authority_rank: support_only
-    allowed_roots: ["package://@nimiplatform/nimi-coding/{config,contracts,spec}/**", ".nimi/spec/<domain>/kernel/tables/*.yaml"]
+    allowed_roots: ["package://@nimiplatform/nimi-coding/{config,contracts,spec}/**", ".nimi/spec/<domain>/kernel/tables/*.yaml", ".nimi/config/spec-generation-inputs.yaml", ".nimi/contracts/domain-admission.schema.yaml", ".nimi/config/spec-layout.yaml", ".nimi/config/governance.yaml"]
     tracking_policy: tracked_only_with_explicit_admission
     mutability: human_admitted
     reference_rules: [may_register_evidence_commands, may_reference_product_authority]

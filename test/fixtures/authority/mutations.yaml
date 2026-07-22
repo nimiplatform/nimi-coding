@@ -1,0 +1,223 @@
+schema: nimicoding.local-authority-mutations/v1
+normative: false
+base_corpora:
+  yaml: valid/yaml
+  markdown: valid/markdown
+cases:
+  - id: wrong_format
+    profiles: [yaml, markdown]
+    mutate: Replace format with nimicoding.authority/v0.
+    fmt: AUTH_FIELD_INVALID
+    check_compile: AUTH_FIELD_INVALID
+  - id: missing_format
+    profiles: [yaml, markdown]
+    mutate: Remove format.
+    fmt_check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_id
+    profiles: [yaml, markdown]
+    mutate: Remove id from definition.session.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: unknown_kind
+    profiles: [yaml, markdown]
+    mutate: Replace definition with concept.
+    fmt_check_compile: AUTH_FIELD_INVALID
+  - id: missing_kind
+    profiles: [yaml, markdown]
+    mutate: Remove kind.
+    fmt_check_compile: AUTH_FIELD_REQUIRED
+  - id: invalid_owner
+    profiles: [yaml, markdown]
+    mutate: Replace team.identity with Team Identity.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_INVALID
+  - id: unknown_lifecycle
+    profiles: [yaml, markdown]
+    mutate: Replace active with draft.
+    fmt_check_compile: AUTH_FIELD_INVALID
+  - id: missing_lifecycle
+    profiles: [yaml, markdown]
+    mutate: Remove lifecycle.
+    fmt_check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_title
+    profiles: [yaml, markdown]
+    mutate: Remove the YAML title or Markdown level-one heading.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_meaning
+    profiles: [yaml, markdown]
+    mutate: Remove meaning or the Meaning section from the active definition.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_modality
+    profiles: [yaml, markdown]
+    mutate: Remove modality from the active rule.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: empty_scope
+    profiles: [yaml, markdown]
+    mutate: Replace scope with an empty list.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_INVALID
+  - id: missing_statement
+    profiles: [yaml, markdown]
+    mutate: Remove statement or the Statement section.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_condition
+    profiles: [yaml, markdown]
+    mutate: Remove condition or the Condition section.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_failure
+    profiles: [yaml, markdown]
+    mutate: Remove failure or the Failure section.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_reason
+    profiles: [yaml, markdown]
+    mutate: Remove reason or the Removal reason section.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_relations
+    profiles: [yaml, markdown]
+    mutate: Remove relations.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_relation_type
+    profiles: [yaml, markdown]
+    mutate: Remove type from one relation item.
+    fmt_check_compile: AUTH_FIELD_REQUIRED
+  - id: missing_relation_target
+    profiles: [yaml, markdown]
+    mutate: Remove target from one relation item.
+    fmt_check_compile: AUTH_FIELD_REQUIRED
+  - id: unknown_relation_type
+    profiles: [yaml, markdown]
+    mutate: Replace applies_to with resembles.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_UNKNOWN
+  - id: dangling_relation_target
+    profiles: [yaml, markdown]
+    mutate: Replace definition.session with definition.unknown.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_DANGLING
+  - id: duplicate_yaml_key
+    profiles: [yaml]
+    mutate: Declare owner twice.
+    fmt_check_compile: AUTH_DUPLICATE_KEY
+  - id: duplicate_markdown_frontmatter_key
+    profiles: [markdown]
+    mutate: Declare owner twice inside Markdown front matter.
+    fmt_check_compile: AUTH_DUPLICATE_KEY
+  - id: ambiguous_markdown_heading
+    profiles: [markdown]
+    mutate: Add a second Failure heading.
+    fmt_check_compile: AUTH_MARKDOWN_AMBIGUOUS
+  - id: unknown_field
+    profiles: [yaml, markdown]
+    mutate: Add default_owner to a source mapping or front matter.
+    fmt_check_compile: AUTH_UNKNOWN_FIELD
+  - id: forbidden_branch_field
+    profiles: [yaml, markdown]
+    mutate: Add modality to an active definition.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_FIELD_FORBIDDEN
+  - id: duplicate_identity
+    profiles: [yaml, markdown]
+    mutate: Copy definition.session to a second file.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_ID_DUPLICATE_with_related_location
+  - id: owner_conflict
+    profiles: [yaml, markdown]
+    mutate: Copy definition.session with owner team.checkout.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: [AUTH_ID_DUPLICATE, AUTH_OWNER_CONFLICT]
+  - id: removed_identity_reuse
+    profiles: [yaml, markdown]
+    mutate: Add an active unit with id rule.checkout-session-v00.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_ID_DUPLICATE
+  - id: relation_kind_mismatch
+    profiles: [yaml, markdown]
+    mutate: Point applies_to at removed rule.checkout-session-v0.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_TYPE
+  - id: relation_outgoing_cardinality
+    profiles: [yaml, markdown]
+    mutate: Add a second distinct supersedes edge to one unit.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CARDINALITY
+  - id: zero_applies_to
+    profiles: [yaml, markdown]
+    mutate: Remove all applies_to edges from rule.checkout-session.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CARDINALITY
+  - id: self_relation
+    profiles: [yaml, markdown]
+    mutate: Point removed rule.checkout-session-v0 supersedes to itself.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CYCLE
+  - id: duplicate_relation
+    profiles: [yaml, markdown]
+    mutate: Repeat the same applies_to edge on rule.checkout-session.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CARDINALITY
+  - id: relation_incoming_cardinality
+    profiles: [yaml, markdown]
+    mutate: Add another rule that supersedes rule.checkout-session-v0.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CARDINALITY_with_related_locations
+  - id: supersedes_cycle
+    profiles: [yaml, markdown]
+    mutate: Add two otherwise-unreferenced removed rules rule.cycle-a and rule.cycle-b, each superseding the other; each has exactly one incoming and one outgoing edge.
+    fmt: success_semantic_status_not_evaluated
+    check_compile: AUTH_RELATION_CYCLE_with_all_cycle_locations_only
+  - id: noncanonical_yaml_flow
+    profiles: [yaml]
+    mutate: Spell scope as [api.checkout] without changing its parsed value.
+    fmt: success_normalizes_to_block_list
+    check_compile_before_fmt: AUTH_FORMAT_DRIFT
+  - id: noncanonical_markdown_order
+    profiles: [markdown]
+    mutate: Move the Failure section before the Condition section.
+    fmt: success_restores_section_order
+    check_compile_before_fmt: AUTH_FORMAT_DRIFT
+  - id: fmt_incomplete_exit
+    profiles: [yaml]
+    mutate: Use invalid/missing-failure.authority.yaml.
+    fmt_json: {exit: 0, ok: true, semantic_status: not_evaluated}
+    check_json: {exit: 1, ok: false, semantic_status: invalid, code: AUTH_FIELD_REQUIRED}
+  - id: fmt_directory_refusal
+    profiles: [cli]
+    mutate: Pass valid/yaml to authority fmt.
+    expected: {exit: 2, write_count: 0}
+  - id: source_map_gap
+    profiles: [internal]
+    mutate: Remove one lowered field span in the compiler test seam.
+    compile: AUTH_SOURCE_MAP_MISSING
+unicode_text_regressions:
+  - id: escaped_lone_surrogate_title
+    field: title
+    yaml_escape: '\uD800'
+  - id: escaped_line_separator_meaning
+    field: meaning
+    yaml_escape: '\u2028'
+  - id: escaped_paragraph_separator_statement
+    field: statement
+    yaml_escape: '\u2029'
+  - id: escaped_next_line_condition
+    field: condition
+    yaml_escape: '\u0085'
+  - id: escaped_vertical_tab_failure
+    field: failure
+    yaml_escape: '\u000B'
+  - id: escaped_form_feed_reason
+    field: reason
+    yaml_escape: '\u000C'
+  - id: escaped_carriage_return_title
+    field: title
+    yaml_escape: '\u000D'
+  - id: escaped_line_feed_meaning
+    field: meaning
+    yaml_escape: '\u000A'

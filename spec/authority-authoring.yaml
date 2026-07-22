@@ -1,0 +1,96 @@
+version: 1
+spec:
+  id: nimicoding.authority-authoring.v1
+  owner: nimi-coding
+  status: active
+product_claim: installed_package_deterministically_formats_checks_and_compiles_canonical_authority
+source_authority: downstream_project_.nimi/spec
+profiles:
+  file_suffixes: [.authority.yaml, .authority.md]
+  yaml:
+    document: closed_top_level_mapping_with_exact_format_and_non_empty_units_sequence_using_YAML_1.2_core_values
+    container_fields: [format, units]
+    units_per_file: 1_to_N
+    unit_identity: explicit_ID_independent_of_file_name_source_index_move_order_or_regroup
+    source_order: preserved_for_author_reading_but_non_semantic
+    formatter_inputs: [block_collections, syntax_clear_flow_collections, syntax_clear_block_scalars]
+    rejected: [legacy_top_level_single_unit_mapping, empty_units, invalid_utf8, duplicate_keys, aliases, anchors, merge_keys, explicit_tags, directives, complex_keys, comments]
+  markdown:
+    units_per_file: 1
+    shared_with_yaml: restricted_lexical_and_syntax_rules_only_not_document_fields
+    front_matter_fields: [format, id, kind, owner, lifecycle, modality, scope, relations]
+    forbidden_front_matter_fields: [units]
+    title: one_plain_level_one_line_required_for_admission_but_omittable_during_fmt
+    active_definition_sections: [Meaning]
+    active_rule_sections: [Statement, Condition, Failure]
+    removed_sections: [Removal reason]
+    section_body: exactly_one_plain_text_line
+    rejected: [extra_or_duplicate_headings, prose_outside_slots, lists, blockquotes, thematic_breaks, fences, html, links, references, emphasis, comments, trailing_content]
+fields:
+  yaml_document_required: [format, units]
+  unit_common_required: [id, kind, owner, lifecycle, title, relations]
+  markdown_frontmatter_also_requires: [format]
+  format: nimicoding.authority/v1
+  identifier: dot_separated_lowercase_segments_start_and_end_alphanumeric
+  kinds: [rule, definition]
+  lifecycles: [active, removed]
+  active_definition:
+    required: [meaning]
+    forbidden: [modality, scope, statement, condition, failure, reason]
+  active_rule:
+    required: [modality, scope, statement, condition, failure]
+    modalities: [must, must_not]
+    forbidden: [meaning, reason]
+  removed:
+    required: [reason]
+    forbidden: [meaning, modality, scope, statement, condition, failure]
+text_values:
+  fields: [title, meaning, statement, condition, failure, reason]
+  unicode: non_empty_trimmed_well_formed_scalar_sequence
+  forbidden_line_break_code_points: [U+000A, U+000B, U+000C, U+000D, U+0085, U+2028, U+2029]
+  yaml_escaped_values: validated_after_parse_by_check_and_compile
+  fmt_semantics: value_preserving_and_not_evaluated
+field_classes:
+  normative_governance: [id, kind, owner, lifecycle]
+  normative_definition: [meaning]
+  normative_rule: [modality, scope, statement, condition, failure]
+  normative_graph: [relations, type, target]
+  non_normative_metadata: [title, reason]
+relations:
+  container: may_be_missing_only_during_draft_formatting
+  item_shape: exactly_non_empty_string_type_and_target
+  formatting: deterministic_type_then_target_sort_preserving_duplicates_and_unknown_string_types
+  applies_to: active_rule_to_active_definition_at_least_one_per_active_rule
+  supersedes: active_or_removed_to_removed_same_kind_max_one_incoming_and_outgoing_acyclic
+  semantic_failures: [unknown_type, duplicate_edge, self_edge, dangling_target, type_mismatch, cardinality, cycle]
+commands:
+  fmt:
+    syntax: nimicoding authority fmt <file> [--check] [--json]
+    semantic_status: not_evaluated
+    writes: one_source_file_atomically_unless_check
+    structural_discriminants: [format, kind, lifecycle]
+    invention: forbidden
+  check:
+    syntax: nimicoding authority check <path> [--json]
+    writes: none
+  compile:
+    syntax: nimicoding authority compile <path> [--json]
+    writes: none
+    ir_visibility: package_private
+    public_json: operation_counts_and_diagnostics_only
+compiler:
+  ordering: [unit_id, scope_lexical, relation_type_then_target]
+  output: [AuthorityIR, SourceMap]
+  source_map: every_AuthorityIR_leaf_uses_its_actual_IR_JSON_pointer_and_exact_source_file_range_and_YAML_source_pointer_under_/units/source_index
+  non_ir_source_entries: forbidden
+  partial_success: forbidden
+diagnostics:
+  range: one_based_unicode_scalar_half_open
+  missing_field: canonical_insertion_point_in_containing_mapping_or_section
+  conflicts: primary_location_plus_sorted_related_locations
+  repair: decision_category_only_never_product_semantic_value
+runtime_authority:
+  contracts: installed_package_only
+  downstream_projection_cannot_change_compiler: true
+admitted_downstream_consumers: [exact_query, bounded_context, semantic_diff, declared_impact]
+not_admitted: [multi_unit_markdown, sqlite, incremental, search, visualization, ai_execution, qualification, nimi_cutover]

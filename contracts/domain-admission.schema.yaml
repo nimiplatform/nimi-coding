@@ -18,7 +18,7 @@ domain_admission_required_fields:
   - forbidden_surface_classes
   - validation_commands
   - migration_disposition_when_unadmitted
-shared_enum_ref: shared-enums.yaml
+shared_enum_ref: package://@nimiplatform/nimi-coding/contracts/shared-enums.yaml
 domain_admissions:
   - domain_id: project
     domain_root: .nimi/spec/project

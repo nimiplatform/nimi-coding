@@ -1,0 +1,64 @@
+format: nimicoding.authority/v1
+units:
+  - id: rule.checkout-session
+    kind: rule
+    owner: team.checkout
+    lifecycle: active
+    title: Checkout requests require a session
+    modality: must
+    scope:
+      - api.checkout
+    statement: A checkout request carries a valid session.
+    condition: Always.
+    failure: Reject the request before creating an order.
+    relations:
+      - type: applies_to
+        target: definition.session
+      - type: supersedes
+        target: rule.checkout-session-v0
+  - id: definition.session
+    kind: definition
+    owner: team.identity
+    lifecycle: active
+    title: Session
+    meaning: A server-issued identity context presented with a protected request.
+    relations:
+      - type: supersedes
+        target: definition.session-v0
+  - id: rule.checkout-no-anonymous
+    kind: rule
+    owner: team.checkout
+    lifecycle: active
+    title: Anonymous checkout is prohibited
+    modality: must_not
+    scope:
+      - api.checkout
+    statement: Checkout creates an order without a valid session.
+    condition: Always.
+    failure: Reject the request before creating an order.
+    relations:
+      - type: applies_to
+        target: definition.session
+  - id: rule.checkout-session-v0
+    kind: rule
+    owner: team.checkout
+    lifecycle: removed
+    title: Legacy checkout session rule
+    reason: Replaced by rule.checkout-session.
+    relations:
+      - type: supersedes
+        target: rule.checkout-session-v00
+  - id: definition.session-v0
+    kind: definition
+    owner: team.identity
+    lifecycle: removed
+    title: Legacy session definition
+    reason: Replaced by definition.session.
+    relations: []
+  - id: rule.checkout-session-v00
+    kind: rule
+    owner: team.checkout
+    lifecycle: removed
+    title: Original checkout session rule
+    reason: Replaced by rule.checkout-session-v0.
+    relations: []

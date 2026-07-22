@@ -9,7 +9,7 @@ required_top_level_fields:
   - table_family_required_fields
   - forbidden_fields_by_authority_class
   - semantic_constraints
-shared_enum_ref: shared-enums.yaml
+shared_enum_ref: package://@nimiplatform/nimi-coding/contracts/shared-enums.yaml
 table_family_required_fields:
   - table_family
   - owner

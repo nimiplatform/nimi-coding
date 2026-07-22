@@ -3,7 +3,6 @@ import path from "node:path";
 
 import { SPEC_GENERATION_AUDIT_REF } from "../constants.mjs";
 import { getBootstrapSeedEntries } from "../seeds/bootstrap.mjs";
-import { inspectBootstrapCompatibility } from "./bootstrap.mjs";
 import { loadSpecGenerationInputsConfig } from "./contracts.mjs";
 import { pathExists, readTextIfFile } from "./fs-helpers.mjs";
 import { runSeedSync, SYNC_MODE } from "./sync.mjs";
@@ -31,28 +30,16 @@ async function managedEntrypoints(projectRoot) {
 
 export async function inspectDoctorState(projectRoot) {
   const checks = [];
-  const bootstrap = await inspectBootstrapCompatibility(projectRoot);
+  const bootstrap = { status: "exact_allowlist" };
+  const seedSync = await runSeedSync(projectRoot, SYNC_MODE.CHECK);
   checks.push(check(
-    "bootstrap_contract",
-    bootstrap.status === "supported",
+    "managed_projection",
+    seedSync.ok,
     "error",
-    bootstrap.status === "supported"
-      ? "bootstrap contract is supported"
-      : "bootstrap contract is missing or unsupported",
+    seedSync.ok
+      ? `all ${seedSync.summary.total} explicitly managed files are aligned`
+      : `${seedSync.checkFailures.length} explicitly managed files are missing or drifted`,
   ));
-
-  let seedSync = null;
-  if (bootstrap.status === "supported") {
-    seedSync = await runSeedSync(projectRoot, SYNC_MODE.CHECK);
-    checks.push(check(
-      "managed_projection",
-      seedSync.ok,
-      "error",
-      seedSync.ok
-        ? `all ${seedSync.summary.total} package-managed files are aligned`
-        : `${seedSync.checkFailures.length} package-managed files are missing or drifted`,
-    ));
-  }
 
   const generationInputs = await loadSpecGenerationInputsConfig(projectRoot);
   checks.push(check(
@@ -131,7 +118,7 @@ export function formatDoctorResult(result, options = {}) {
     "",
     styleLabel(localize("Summary:", "摘要：")),
     `  - ${localize("status", "状态")}: ${styleStatus(result.ok ? "ok" : "needs_attention")}`,
-    `  - bootstrap: ${result.bootstrap.status}`,
+    `  - projection_policy: ${result.bootstrap.status}`,
     `  - managed_projection: ${result.managedProjection?.ok === true ? "aligned" : "invalid"}`,
     `  - spec: ${!result.spec.present ? "not_constructed" : "present_not_validated"}`,
     `  - generation_audit: ${!result.generationAudit.present ? "not_present" : "present_not_validated"}`,

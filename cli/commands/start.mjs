@@ -1,7 +1,6 @@
 import path from "node:path";
 
 import {
-  inspectBootstrapCompatibility,
   integrateEntrypoints,
   pathExists,
   previewBootstrapWrites,
@@ -42,15 +41,6 @@ export async function runStart(args) {
       `nimicoding start 已拒绝：${nimiRoot} 已存在且不是目录。\n`,
     ));
     return 2;
-  }
-
-  const compatibility = await inspectBootstrapCompatibility(projectRoot);
-  if (compatibility.status === "unsupported") {
-    process.stderr.write(localize(
-      "nimicoding start refused: bootstrap.yaml uses an unsupported contract. Run the hard-cut migration before retrying.\n",
-      "nimicoding start 已拒绝：bootstrap.yaml 使用了不受支持的 contract。请先完成硬切迁移。\n",
-    ));
-    return 1;
   }
 
   const bootstrapPreview = await previewBootstrapWrites(projectRoot);

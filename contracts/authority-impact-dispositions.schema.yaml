@@ -1,0 +1,13 @@
+version: 1
+contract:
+  id: nimicoding.authority-impact-dispositions.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.authority-impact-dispositions/v1
+identifier_pattern: '^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$'
+status: addressed
+fields:
+  top: [format, rules]
+  rule: [id, consumers, test]
+  consumer: [scope, status, evidence]
+  test: [status, evidence]

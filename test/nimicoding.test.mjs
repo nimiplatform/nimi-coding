@@ -69,6 +69,15 @@ async function writeValidSpec(root) {
   ].join("\n"), "utf8");
 }
 
+async function writeCanonicalAuthoritySpec(root) {
+  const authorityRoot = path.join(root, ".nimi/spec/project/canonical");
+  await mkdir(authorityRoot, { recursive: true });
+  await cp(
+    path.join(packageRoot, "test/fixtures/authority/valid/yaml/session.authority.yaml"),
+    path.join(authorityRoot, "session.authority.yaml"),
+  );
+}
+
 async function writeValidAudit(root) {
   const canonicalFiles = [
     ".nimi/spec/INDEX.md",
@@ -78,7 +87,7 @@ async function writeValidAudit(root) {
   ];
   const audit = {
     version: 2,
-    contract_ref: ".nimi/contracts/spec-generation-audit.schema.yaml",
+    contract_ref: "package://@nimiplatform/nimi-coding/contracts/spec-generation-audit.schema.yaml",
     spec_generation_audit: {
       generation_mode: "class_filtered",
       canonical_target_root: ".nimi/spec",
@@ -110,7 +119,7 @@ async function writeSpecLayout(root, specLayout) {
   const layoutPath = path.join(root, ".nimi/config/spec-layout.yaml");
   await writeFile(layoutPath, YAML.stringify({
     version: 1,
-    contract_ref: ".nimi/contracts/spec-layout.schema.yaml",
+    contract_ref: "package://@nimiplatform/nimi-coding/contracts/spec-layout.schema.yaml",
     spec_layout: specLayout,
   }), "utf8");
 }
@@ -130,6 +139,13 @@ test("public CLI exposes the complete methodology and spec-governance surface", 
     .map((line) => line.trim().split(/\s+/)[1])
     .filter((command) => !command.startsWith("--"));
   assert.deepEqual(commandNames, [
+    "authority",
+    "authority",
+    "authority",
+    "authority",
+    "authority",
+    "authority",
+    "authority",
     "start",
     "sync",
     "clear",
@@ -155,6 +171,7 @@ test("public CLI exposes the complete methodology and spec-governance surface", 
   const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(packageJson.version, "0.3.1");
   assert.equal(packageJson.dependencies["@openai/codex-sdk"], undefined);
+  assert.deepEqual(packageJson.exports, {});
   assert.deepEqual(packageJson.files, [
     "bin",
     "cli",
@@ -177,35 +194,107 @@ test("start projects the exact package-managed authority support surface", async
   const output = await bootstrapProject(root);
   assert.equal(output.ok, true);
   const projected = await listFiles(path.join(root, ".nimi"));
-  const expectedProjected = (await Promise.all(
-    ["config", "contracts", "methodology"].map(async (sourceDir) => (
-      (await listFiles(path.join(packageRoot, sourceDir))).map((ref) => `${sourceDir}/${ref}`)
-    )),
-  )).flat().sort();
-  assert.deepEqual(projected, expectedProjected);
+  assert.deepEqual(projected, [
+    "config/spec-generation-inputs.yaml",
+    "contracts/domain-admission.schema.yaml",
+    "methodology/authority-authoring.yaml",
+  ]);
   const agents = await readFile(path.join(root, "AGENTS.md"), "utf8");
-  assert.match(agents, /Product and repository authority lives under `\/\.nimi\/spec\/\*\*`/);
-  assert.match(agents, /generation evidence under `\/\.nimi\/local\/state\/spec-generation\/\*\*`/);
+  const claude = await readFile(path.join(root, "CLAUDE.md"), "utf8");
+  for (const entrypoint of [agents, claude]) {
+    assert.match(entrypoint, /\.nimi\/methodology\/authority-authoring\.yaml/);
+    assert.match(entrypoint, /authority context/);
+    assert.doesNotMatch(entrypoint, /\.nimi\/methodology\/\*\*/);
+    assert.doesNotMatch(entrypoint, /\.nimi\/contracts\/\*\*/);
+  }
+  const managedBlocks = [
+    agents.match(/<!-- nimicoding:managed:agents:start -->[\s\S]*?<!-- nimicoding:managed:agents:end -->/)[0],
+    claude.match(/<!-- nimicoding:managed:claude:start -->[\s\S]*?<!-- nimicoding:managed:claude:end -->/)[0],
+  ];
+  assert(managedBlocks.reduce((total, block) => total + Buffer.byteLength(`${block}\n`, "utf8"), 0) <= 16 * 1024);
+  const guide = await readFile(path.join(root, ".nimi/methodology/authority-authoring.yaml"), "utf8");
+  assert(Buffer.byteLength(guide, "utf8") <= 32 * 1024);
 });
 
 test("sync rejects package-owned projection drift and repairs it deterministically", async () => {
   const root = await temporaryProject();
   await bootstrapProject(root);
-  const projectedContract = path.join(root, ".nimi/contracts/shared-enums.yaml");
+  const projectedContract = path.join(root, ".nimi/methodology/authority-authoring.yaml");
   await writeFile(projectedContract, "version: broken\n", "utf8");
   assert.equal((await runCli(root, ["sync", "--check"])).code, 1);
   assert.equal((await runCli(root, ["sync", "--apply"])).code, 0);
   assert.equal((await runCli(root, ["sync", "--check"])).code, 0);
-  assert.equal(await readFile(projectedContract, "utf8"), await readFile(path.join(packageRoot, "contracts/shared-enums.yaml"), "utf8"));
+  assert.equal(await readFile(projectedContract, "utf8"), await readFile(path.join(packageRoot, "methodology/authority-authoring.yaml"), "utf8"));
 });
 
-test("the bootstrap contract is a hard cut with no compatibility branch", async () => {
+test("exact projection registry preserves host ownership and blocks undeclared managed-surface paths", async () => {
+  const root = await temporaryProject();
+  await bootstrapProject(root);
+  await writeSpecLayout(root, {
+    canonical_root: ".nimi/spec",
+    host_instruction_paths: [],
+    tracked_derived_projections: [],
+    table_family_extensions: [],
+  });
+  await writeFile(path.join(root, ".nimi/config/host-overlay.yaml"), "version: 1\nhost_overlay: {}\n", "utf8");
+  await writeFile(path.join(root, ".nimi/config/governance.yaml"), "profile_id: fixture\nspec_governance: {}\nai_governance: {}\n", "utf8");
+
+  const classified = await runCli(root, ["classify-spec-tree", "--root", ".nimi", "--json"]);
+  assert.equal(classified.code, 0, classified.stdout || classified.stderr);
+  const byPath = new Map(JSON.parse(classified.stdout).inventory.inventory.map((entry) => [entry.source_path, entry]));
+  for (const ref of [
+    ".nimi/config/spec-generation-inputs.yaml",
+    ".nimi/contracts/domain-admission.schema.yaml",
+  ]) {
+    assert.equal(byPath.get(ref).current_inferred_class, "support_registry");
+    assert.equal(byPath.get(ref).owner, "product_host");
+  }
+  assert.equal(byPath.get(".nimi/methodology/authority-authoring.yaml").current_inferred_class, "nimicoding_managed_projection");
+  assert.equal(byPath.get(".nimi/methodology/authority-authoring.yaml").owner, "nimi-coding");
+  assert.equal(byPath.get(".nimi/config/host-overlay.yaml").current_inferred_class, "host_projection_anchor");
+  assert.equal(byPath.get(".nimi/config/host-overlay.yaml").owner, "host_projection");
+  for (const ref of [".nimi/config/spec-layout.yaml", ".nimi/config/governance.yaml"]) {
+    assert.equal(byPath.get(ref).current_inferred_class, "support_registry");
+    assert.equal(byPath.get(ref).owner, "product_host");
+  }
+
+  const attackRef = ".nimi/contracts/not-in-seed-allowlist.schema.yaml";
+  await writeFile(path.join(root, attackRef), "version: 1\n", "utf8");
+  for (const command of ["classify-spec-tree", "validate-placement"]) {
+    const blocked = await runCli(root, [command, "--root", ".nimi", "--json"]);
+    assert.equal(blocked.code, 1, `${command}: ${blocked.stdout || blocked.stderr}`);
+    const report = JSON.parse(blocked.stdout);
+    assert(report.errors.some((error) => error.includes(`unclassified_file: ${attackRef}`)));
+    if (command === "classify-spec-tree") {
+      const entry = report.inventory.inventory.find((item) => item.source_path === attackRef);
+      assert.equal(entry.current_inferred_class, "unclassified");
+      assert.equal(entry.disposition, "block");
+      assert.notEqual(entry.owner, "nimi-coding");
+    }
+  }
+  const sync = await runCli(root, ["sync", "--check", "--json"]);
+  assert.equal(sync.code, 1, sync.stdout || sync.stderr);
+  const syncReport = JSON.parse(sync.stdout);
+  assert(syncReport.checkFailures.some((entry) => entry.outputRelativePath === attackRef && entry.status === "unexpected_unadmitted_path"));
+});
+
+test("the exact allowlist does not inherit the legacy bootstrap marker", async () => {
   const root = await temporaryProject();
   await mkdir(path.join(root, ".nimi/config"), { recursive: true });
-  await writeFile(path.join(root, ".nimi/config/bootstrap.yaml"), "version: 1\ncontract:\n  id: nimicoding.bootstrap\n", "utf8");
+  const legacy = path.join(root, ".nimi/config/bootstrap.yaml");
+  await writeFile(legacy, "version: 1\ncontract:\n  id: legacy\n", "utf8");
   const result = await runCli(root, ["start", "--yes"]);
-  assert.equal(result.code, 1);
-  assert.match(result.stderr, /unsupported contract/);
+  assert.equal(result.code, 0, result.stderr || result.stdout);
+  assert.equal(await readFile(legacy, "utf8"), "version: 1\ncontract:\n  id: legacy\n");
+  const classified = await runCli(root, ["classify-spec-tree", "--root", ".nimi", "--json"]);
+  assert.equal(classified.code, 1);
+  const legacyEntry = JSON.parse(classified.stdout).inventory.inventory.find((entry) => entry.source_path === ".nimi/config/bootstrap.yaml");
+  assert.equal(legacyEntry.current_inferred_class, "unclassified");
+  assert.equal(legacyEntry.disposition, "block");
+  assert.notEqual(legacyEntry.owner, "nimi-coding");
+  const sync = await runCli(root, ["sync", "--check", "--json"]);
+  assert.equal(sync.code, 1);
+  assert(JSON.parse(sync.stdout).checkFailures.some((entry) => entry.outputRelativePath === ".nimi/config/bootstrap.yaml" && entry.status === "unexpected_unadmitted_path"));
 });
 
 test("spec tree and generation audit validation accept a complete canonical surface", async () => {
@@ -219,6 +308,72 @@ test("spec tree and generation audit validation accept a complete canonical surf
   const audit = await runCli(root, ["validate-spec-audit"]);
   assert.equal(audit.code, 0, audit.stdout || audit.stderr);
   assert.equal(JSON.parse(audit.stdout).ok, true);
+});
+
+test("placement and spec-tree admit canonical multi-unit authority without a legacy skeleton", async () => {
+  const root = await temporaryProject();
+  await bootstrapProject(root);
+  await writeCanonicalAuthoritySpec(root);
+
+  const authorityCheck = await runCli(root, ["authority", "check", ".nimi/spec", "--json"]);
+  assert.equal(authorityCheck.code, 0, authorityCheck.stdout || authorityCheck.stderr);
+  const authorityCompile = await runCli(root, ["authority", "compile", ".nimi/spec", "--json"]);
+  assert.equal(authorityCompile.code, 0, authorityCompile.stdout || authorityCompile.stderr);
+
+  const placement = await runCli(root, ["validate-placement", "--profile", "fixture", "--root", ".nimi/spec", "--json"]);
+  assert.equal(placement.code, 0, placement.stdout || placement.stderr);
+  const placementReport = JSON.parse(placement.stdout);
+  assert.equal(placementReport.summary.by_surface_class.product_authority, 1);
+  assert.equal(placementReport.summary.by_surface_class.unclassified, undefined);
+
+  const tree = await runCli(root, ["validate-spec-tree", ".nimi/spec"]);
+  assert.equal(tree.code, 0, tree.stdout || tree.stderr);
+  const treeReport = JSON.parse(tree.stdout);
+  assert.deepEqual(treeReport.summary.missingRequired, []);
+
+  await rm(path.join(root, ".nimi/spec/project/canonical"), { recursive: true });
+  await writeFile(path.join(root, ".nimi/spec/project/guide.md"), "# Guidance only\n", "utf8");
+  const guidanceOnly = await runCli(root, ["validate-spec-tree", ".nimi/spec"]);
+  assert.equal(guidanceOnly.code, 1, guidanceOnly.stdout || guidanceOnly.stderr);
+  assert.match(guidanceOnly.stdout, /missing required canonical surface: product_authority/);
+});
+
+test("package-owned contract references reject stale downstream projection paths", async () => {
+  const root = await temporaryProject();
+  await bootstrapProject(root);
+  await writeValidSpec(root);
+  await writeValidAudit(root);
+
+  const configPath = path.join(root, ".nimi/config/spec-generation-inputs.yaml");
+  const config = YAML.parse(await readFile(configPath, "utf8"));
+  config.contract_ref = ".nimi/contracts/spec-generation-inputs.schema.yaml";
+  await writeFile(configPath, YAML.stringify(config), "utf8");
+  let result = await runCli(root, ["validate-spec-tree"]);
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /invalid spec generation inputs config/);
+  await writeFile(configPath, await readFile(path.join(packageRoot, "config/spec-generation-inputs.yaml"), "utf8"), "utf8");
+
+  const auditPath = path.join(root, ".nimi/local/state/spec-generation/spec-generation-audit.yaml");
+  const audit = YAML.parse(await readFile(auditPath, "utf8"));
+  audit.contract_ref = ".nimi/contracts/spec-generation-audit.schema.yaml";
+  await writeFile(auditPath, YAML.stringify(audit), "utf8");
+  result = await runCli(root, ["validate-spec-audit", auditPath]);
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /contract_ref must be package:\/\//);
+
+  await writeSpecLayout(root, {
+    canonical_root: ".nimi/spec",
+    host_instruction_paths: [],
+    tracked_derived_projections: [],
+    table_family_extensions: [],
+  });
+  const layoutPath = path.join(root, ".nimi/config/spec-layout.yaml");
+  const layout = YAML.parse(await readFile(layoutPath, "utf8"));
+  layout.contract_ref = ".nimi/contracts/spec-layout.schema.yaml";
+  await writeFile(layoutPath, YAML.stringify(layout), "utf8");
+  result = await runCli(root, ["validate-placement", "--root", ".nimi/spec", "--json"]);
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /invalid_spec_layout_config/);
 });
 
 test("generation input configuration rejects every undeclared field", async () => {
@@ -486,7 +641,7 @@ test("host spec layout admits a reproducible tracked projection without promotin
   await writeValidSpec(root);
   await writeFile(path.join(root, ".nimi/config/spec-layout.yaml"), [
     "version: 1",
-    "contract_ref: .nimi/contracts/spec-layout.schema.yaml",
+    "contract_ref: package://@nimiplatform/nimi-coding/contracts/spec-layout.schema.yaml",
     "spec_layout:",
     "  canonical_root: .nimi/spec",
     "  host_instruction_paths: []",

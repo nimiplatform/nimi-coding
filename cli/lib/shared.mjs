@@ -24,7 +24,6 @@ export {
   removeManagedEntrypoints,
 } from "./entrypoints.mjs";
 export {
-  inspectBootstrapCompatibility,
   previewBootstrapRemoval,
   previewBootstrapWrites,
   removeManagedBootstrapFiles,

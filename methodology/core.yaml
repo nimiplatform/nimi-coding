@@ -8,6 +8,9 @@ methodology:
       - spec_construction_contracts
       - managed_methodology_and_contract_projections
       - deterministic_spec_and_governance_validation
+      - canonical_authority_format_check_and_private_compile
+      - exact_authority_query_and_bounded_context_packets
+      - complete_byte_bounded_semantic_authority_diff_and_declared_relation_impact
     does_not_own:
       - task_planning
       - task_state
@@ -15,6 +18,7 @@ methodology:
       - implementation_execution
       - review_or_approval_state
       - provider_runtime
+      - model_tokenization_or_prompt_assembly
   principles:
     - authority_before_convenience
     - explicit_complexity_over_ambiguous_simplicity

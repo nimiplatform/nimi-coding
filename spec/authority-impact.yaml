@@ -1,0 +1,82 @@
+version: 1
+spec:
+  id: nimicoding.authority-impact.v1
+  owner: nimi-coding
+  status: active
+product_claim: compare_admitted_compiler_outputs_and_fail_on_undisposed_declared_rule_obligations
+commands:
+  diff: nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]
+  impact: nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]
+diff:
+  source: two_independently_admitted_compiler_outputs
+  format: nimicoding.authority-diff/v1
+  top_level_fields: [format, changes, summary]
+  summary_fields: [units, changes]
+  record:
+    required_fields: [unitId, operation, pointer, before, after]
+    optional_fields: [beforeSource, afterSource]
+    operation_enum:
+      unit_added: complete_after_unit
+      modified: scalar_field_before_and_after
+      added: scope_value_or_relation_added
+      removed: scope_value_or_relation_removed
+    source_record_fields: [file, range, sourcePointer]
+    range_fields: [start, end]
+    position_fields: [line, column]
+  unit_removed_operation: forbidden
+  physical_unit_deletion: AUTH_DIFF_TRANSITION_INVALID
+  retirement: active_unit_is_replaced_by_a_valid_same_ID_same_kind_removed_tombstone
+  tombstone_retention: removed_unit_remains_present_until_a_separately_admitted_reserved_ID_mechanism_exists
+  pure_profile_format_file_rename_unit_order_or_container_regroup_change: empty
+  ordering: [unit_ID, JSON_pointer, operation, values]
+  traceability: changed_values_reference_before_and_or_after_SourceMap
+  invalid_input_diagnostics:
+    path_identity: before_or_after_prefix_plus_input_root_relative_path
+    related_paths: same_side_prefix_and_relative_normalization
+    ordering: global_diagnostic_order_after_normalization
+    relocated_equivalent_inputs: byte_identical_JSON
+  byte_budget:
+    scope: semantic_diff_only_not_complete_CLI_report_or_compiler_diagnostics
+    measure: UTF-8_bytes_of_compact_JSON_stringify_diff
+    overflow: AUTH_DIFF_BUDGET
+    result: {diff: null, partial: false}
+impact:
+  format: nimicoding.authority-impact/v1
+  top_level_fields: [format, changedUnits, impactedUnits, obligations, complete]
+  impacted_unit_fields: [id, kind]
+  obligation_fields: [ruleId, type, target, disposition]
+  disposition_fields_when_addressed: [ruleId, type, target, status, evidence]
+  roots: normative_governance_definition_rule_graph_changes; non_normative_metadata_diff_is_reported_but_creates_no_obligation
+  direction: reverse_declared_relations_from_changed_units_to_dependents
+  relation_categories: [applies_to, supersedes]
+  unrelated_units: excluded
+  active_rule_obligations:
+    consumer: union_of_before_and_after_declared_scope
+    test: one_explicit_evidence_disposition_per_impacted_active_rule
+  missing_disposition: AUTH_IMPACT_UNDISPOSED
+  complete: every_required_obligation_has_exact_addressed_evidence
+  partial_success: false
+  failure_report: may_list_complete_impacted_units_and_unresolved_obligations_with_ok_false
+  byte_budget:
+    scope: semantic_diff_and_impact_only_not_complete_CLI_report_or_compiler_diagnostics
+    measure: UTF-8_bytes_of_compact_JSON_stringify_object_containing_diff_and_impact
+    overflow: AUTH_IMPACT_BUDGET
+    result: {diff: null, impact: null, partial: false}
+dispositions:
+  format: nimicoding.authority-impact-dispositions/v1
+  authority: package://@nimiplatform/nimi-coding/contracts/authority-impact-dispositions.schema.yaml
+  status: addressed
+  evidence: explicit_non_empty_text
+  inference: forbidden
+fail_closed:
+  invalid_before_or_after_authority: compiler_diagnostics
+  identity_reuse_kind_change_or_physical_deletion: AUTH_DIFF_TRANSITION_INVALID_or_compiler_identity_diagnostics
+  dangling_relation_or_illegal_lifecycle: compiler_diagnostics
+  malformed_or_extra_disposition: AUTH_IMPACT_DISPOSITION_INVALID
+  missing_or_invalid_max_bytes: CLI_usage_failure
+boundaries:
+  writes_authority: false
+  durable_artifacts: none
+  git_interpretation: none
+  natural_language_contradiction_detection: not_claimed
+  storage_search_visualization_AI_execution: not_admitted

@@ -5,11 +5,11 @@ reconstruction:
   package_role: contracts_methodology_and_deterministic_validation
   execution_owner: host_native_capabilities
   generation_inputs_ref: .nimi/config/spec-generation-inputs.yaml
-  surface_taxonomy_ref: .nimi/contracts/surface-taxonomy.schema.yaml
-  placement_contract_ref: .nimi/contracts/placement-contract.schema.yaml
-  table_family_contract_ref: .nimi/contracts/table-family.schema.yaml
-  domain_admission_contract_ref: .nimi/contracts/domain-admission.schema.yaml
-  tracked_output_admission_contract_ref: .nimi/contracts/tracked-output-admission.schema.yaml
+  surface_taxonomy_ref: package://@nimiplatform/nimi-coding/contracts/surface-taxonomy.schema.yaml
+  placement_contract_ref: package://@nimiplatform/nimi-coding/contracts/placement-contract.schema.yaml
+  table_family_contract_ref: package://@nimiplatform/nimi-coding/contracts/table-family.schema.yaml
+  domain_admission_contract_ref: package://@nimiplatform/nimi-coding/contracts/domain-admission.schema.yaml
+  tracked_output_admission_contract_ref: package://@nimiplatform/nimi-coding/contracts/tracked-output-admission.schema.yaml
   goals:
     - establish_project_canonical_rule_root
     - classify_every_input_before_generation
@@ -24,14 +24,10 @@ reconstruction:
   target_root: .nimi/spec
   audit_root: .nimi/local/state/spec-generation/spec-generation-audit.yaml
   target_tree_shape:
-    required_surface_classes: [product_authority, product_authority_table, thin_guidance]
-    optional_surface_classes: [host_projection_anchor, support_registry, host_instruction, tracked_derived_projection]
+    required_surface_classes: [product_authority]
+    optional_surface_classes: [product_authority_table, thin_guidance, host_projection_anchor, support_registry, host_instruction, tracked_derived_projection]
     forbidden_surface_classes: [derived_view, spec_generation_state, audit_evidence_state, operational_local_artifact, nimicoding_managed_projection, methodology_authority]
-    minimal_required_outputs:
-      - .nimi/spec/INDEX.md
-      - .nimi/spec/project/kernel/index.md
-      - .nimi/spec/project/kernel/core-rules.md
-      - .nimi/spec/project/kernel/tables/rule-catalog.yaml
+    minimal_required_outputs: []
     minimum_generation_sequence:
       - classify_inputs
       - validate_placement
@@ -63,7 +59,7 @@ reconstruction:
     - nimi_coding_must_not_create_or_manage_host_execution_state
   completion_gate:
     required_profile: surface_taxonomy_v2
-    audit_contract_ref: .nimi/contracts/spec-generation-audit.schema.yaml
+    audit_contract_ref: package://@nimiplatform/nimi-coding/contracts/spec-generation-audit.schema.yaml
     validation_commands:
       - pnpm exec nimicoding validate-spec-tree -- .nimi/spec
       - pnpm exec nimicoding validate-spec-audit -- .nimi/local/state/spec-generation/spec-generation-audit.yaml

@@ -1,0 +1,13 @@
+task: review_checkout_session_requirement
+root: rule.checkout-session
+max_units: 5
+max_bytes: 65536
+required_authority:
+  - definition.session
+  - definition.session-v0
+  - rule.checkout-session
+  - rule.checkout-session-v0
+  - rule.checkout-session-v00
+unrelated_authority:
+  - rule.checkout-no-anonymous
+allowed_inputs: [projected_authority_guide, bounded_context_packet, task_authority, diagnostics]

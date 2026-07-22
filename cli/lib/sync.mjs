@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getBootstrapSeedEntries } from "../seeds/bootstrap.mjs";
@@ -20,9 +20,48 @@ const STATUS = {
   MISSING_PACKAGE_CANONICAL: "missing_package_canonical",
   MISSING_HOST_STATE_SEED: "missing_host_state_seed",
   DRIFTED_PACKAGE_CANONICAL: "drifted_package_canonical",
+  UNEXPECTED_UNADMITTED_PATH: "unexpected_unadmitted_path",
 };
 
+const EXACT_HOST_CONFIG_PATHS = new Set([
+  ".nimi/config/host-overlay.yaml",
+  ".nimi/config/spec-layout.yaml",
+  ".nimi/config/governance.yaml",
+]);
+const MANAGED_SURFACE_ROOTS = [".nimi/config", ".nimi/contracts", ".nimi/methodology"];
+
 const HOST_OWNED_SEED_OWNERSHIPS = new Set(["host_state_seed", "host_profile_override"]);
+
+async function collectSurfaceFiles(projectRoot, relativeRoot) {
+  const root = path.join(projectRoot, relativeRoot);
+  const info = await pathExists(root);
+  if (!info?.isDirectory()) return [];
+  async function walk(current, relative) {
+    const entries = await readdir(current, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+      const absolute = path.join(current, entry.name);
+      const ref = path.posix.join(relative, entry.name);
+      if (entry.isDirectory()) files.push(...await walk(absolute, ref));
+      else files.push(ref);
+    }
+    return files;
+  }
+  return walk(root, relativeRoot);
+}
+
+async function unexpectedSurfaceResults(projectRoot, seedEntries) {
+  const admitted = new Set([...seedEntries.map((entry) => entry.outputRelativePath), ...EXACT_HOST_CONFIG_PATHS]);
+  const files = (await Promise.all(MANAGED_SURFACE_ROOTS.map((root) => collectSurfaceFiles(projectRoot, root)))).flat().sort();
+  return files.filter((ref) => !admitted.has(ref)).map((ref) => ({
+    outputRelativePath: ref,
+    ownership: "unadmitted",
+    status: STATUS.UNEXPECTED_UNADMITTED_PATH,
+    detail: ref === ".nimi/config/bootstrap.yaml"
+      ? "rejected legacy bootstrap path is outside the exact projection registry"
+      : "unexpected/unadmitted path is outside the exact projection registry and host config allowlist",
+  }));
+}
 
 async function evaluateSeedEntry(projectRoot, entry, mode) {
   const absolutePath = path.join(projectRoot, entry.outputRelativePath);
@@ -97,6 +136,7 @@ export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
   for (const entry of entries) {
     results.push(await evaluateSeedEntry(projectRoot, entry, mode));
   }
+  results.push(...await unexpectedSurfaceResults(projectRoot, entries));
 
   const summary = {
     total: results.length,
@@ -109,6 +149,7 @@ export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
     missing_host_state_seed: 0,
     missing_package_canonical: 0,
     drifted_package_canonical: 0,
+    unexpected_unadmitted_path: 0,
   };
 
   for (const result of results) {
@@ -127,7 +168,8 @@ export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
     ? results.filter((r) =>
       r.status === STATUS.MISSING_PACKAGE_CANONICAL
       || r.status === STATUS.MISSING_HOST_STATE_SEED
-      || r.status === STATUS.DRIFTED_PACKAGE_CANONICAL,
+      || r.status === STATUS.DRIFTED_PACKAGE_CANONICAL
+      || r.status === STATUS.UNEXPECTED_UNADMITTED_PATH,
     )
     : [];
 

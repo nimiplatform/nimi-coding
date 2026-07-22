@@ -3,6 +3,13 @@ import { localize, styleCommand, styleHeading, styleMuted } from "./lib/ui.mjs";
 
 export function helpText() {
   const commands = [
+    "nimicoding authority fmt <file> [--check] [--json]",
+    "nimicoding authority check <path> [--json]",
+    "nimicoding authority compile <path> [--json]",
+    "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
+    "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
+    "nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]",
+    "nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]",
     "nimicoding start [--yes]",
     "nimicoding sync [--apply|--check|--dry-run] [--json]",
     "nimicoding clear [--yes]",

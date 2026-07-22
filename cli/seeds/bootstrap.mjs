@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,94 +6,47 @@ import YAML from "yaml";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const POLICY_PATH = fileURLToPath(new URL("./seed-policy.yaml", import.meta.url));
-
 const SUPPORTED_OWNERSHIP = new Set(["package_canonical", "host_state_seed", "host_profile_override"]);
-
 let cachedPolicy = null;
 
-function toPortableRelativePath(filePath) {
-  return filePath.split(path.sep).join("/");
+function portable(value) {
+  return value.split(path.sep).join(path.posix.sep);
+}
+
+function admittedRelativePath(value, label) {
+  if (typeof value !== "string" || !value || path.posix.isAbsolute(value) || value.startsWith("./") || value.split("/").includes("..") || path.posix.normalize(value) !== value) {
+    throw new Error(`seed policy ${label} must be a portable relative path`);
+  }
+  return value;
 }
 
 async function loadPolicy() {
-  if (cachedPolicy) {
-    return cachedPolicy;
+  if (cachedPolicy) return cachedPolicy;
+  const parsed = YAML.parse(await readFile(POLICY_PATH, "utf8"));
+  if (parsed?.policy_id !== "nimicoding.seed-projection.v2" || !Array.isArray(parsed.projections) || parsed.projections.length === 0) {
+    throw new Error("seed policy must declare the v2 exact projection allowlist");
   }
-
-  const text = await readFile(POLICY_PATH, "utf8");
-  const parsed = YAML.parse(text);
-
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error(`seed policy at ${POLICY_PATH} is not a valid YAML object`);
-  }
-
-  if (!Array.isArray(parsed.projections) || parsed.projections.length === 0) {
-    throw new Error("seed policy is missing required `projections` list");
-  }
-
-  const projections = parsed.projections.map((projection) => {
-    if (!projection || typeof projection.source_dir !== "string" || typeof projection.output_dir !== "string") {
-      throw new Error("seed policy projection entries must declare source_dir and output_dir strings");
-    }
-    return { sourceDir: projection.source_dir, outputDir: projection.output_dir };
-  });
-
-  const defaultOwnership = parsed.default_ownership ?? "package_canonical";
-  if (!SUPPORTED_OWNERSHIP.has(defaultOwnership)) {
-    throw new Error(`seed policy declares unsupported default_ownership: ${defaultOwnership}`);
-  }
-
-  const excludedRaw = Array.isArray(parsed.excluded_projection) ? parsed.excluded_projection : [];
-  const excludedSourceRelativePaths = new Set(excludedRaw.map((entry) => String(entry)));
-
-  const overrideEntries = Array.isArray(parsed.ownership_overrides) ? parsed.ownership_overrides : [];
-  const ownershipByOutputPath = new Map();
-  for (const entry of overrideEntries) {
-    if (!entry || typeof entry.path !== "string" || typeof entry.ownership !== "string") {
-      throw new Error("seed policy ownership_overrides entries must declare path and ownership strings");
-    }
-    if (!SUPPORTED_OWNERSHIP.has(entry.ownership)) {
-      throw new Error(`seed policy ownership override at ${entry.path} declares unsupported ownership: ${entry.ownership}`);
-    }
-    ownershipByOutputPath.set(entry.path, entry.ownership);
-  }
-
-  cachedPolicy = {
-    policyId: parsed.policy_id ?? null,
-    projections,
-    defaultOwnership,
-    excludedSourceRelativePaths,
-    ownershipByOutputPath,
-  };
-  return cachedPolicy;
-}
-
-async function collectProjectedEntries(policy, projection, rootPath, currentPath, entries) {
-  const directoryEntries = await readdir(currentPath, { withFileTypes: true });
-  for (const entry of directoryEntries) {
-    const absolutePath = path.join(currentPath, entry.name);
-    if (entry.isDirectory()) {
-      await collectProjectedEntries(policy, projection, rootPath, absolutePath, entries);
-      continue;
-    }
-
-    const relativeFromSourceRoot = toPortableRelativePath(path.relative(rootPath, absolutePath));
-    const sourceRelativePath = `${projection.sourceDir}/${relativeFromSourceRoot}`;
-    if (policy.excludedSourceRelativePaths.has(sourceRelativePath)) {
-      continue;
-    }
-
-    const outputRelativePath = `${projection.outputDir}/${relativeFromSourceRoot}`;
-    const ownership = policy.ownershipByOutputPath.get(outputRelativePath) ?? policy.defaultOwnership;
-    const content = await readFile(absolutePath, "utf8");
-    entries.push({
-      outputRelativePath,
+  const seenSource = new Set();
+  const seenOutput = new Set();
+  const projections = parsed.projections.map((entry) => {
+    const sourceRelativePath = admittedRelativePath(entry?.source, "source");
+    const outputRelativePath = admittedRelativePath(entry?.output, "output");
+    if (!outputRelativePath.startsWith(".nimi/")) throw new Error(`seed policy output must stay below .nimi: ${outputRelativePath}`);
+    if (!SUPPORTED_OWNERSHIP.has(entry?.ownership)) throw new Error(`seed policy ownership is unsupported: ${entry?.ownership}`);
+    if (typeof entry?.downstream_consumer !== "string" || !entry.downstream_consumer.trim()) throw new Error(`seed policy entry requires a downstream consumer: ${sourceRelativePath}`);
+    if (seenSource.has(sourceRelativePath) || seenOutput.has(outputRelativePath)) throw new Error(`seed policy contains duplicate source/output: ${sourceRelativePath}`);
+    seenSource.add(sourceRelativePath);
+    seenOutput.add(outputRelativePath);
+    return {
       sourceRelativePath,
-      sourceAbsolutePath: absolutePath,
-      content,
-      ownership,
-    });
-  }
+      outputRelativePath,
+      ownership: entry.ownership,
+      downstreamConsumer: entry.downstream_consumer,
+    };
+  });
+  projections.sort((left, right) => left.outputRelativePath < right.outputRelativePath ? -1 : left.outputRelativePath > right.outputRelativePath ? 1 : 0);
+  cachedPolicy = { policyId: parsed.policy_id, projections };
+  return cachedPolicy;
 }
 
 export async function loadSeedPolicy() {
@@ -103,21 +56,19 @@ export async function loadSeedPolicy() {
 export async function getBootstrapSeedEntries() {
   const policy = await loadPolicy();
   const entries = [];
-
   for (const projection of policy.projections) {
-    const sourceRoot = path.join(PACKAGE_ROOT, projection.sourceDir);
-    await collectProjectedEntries(policy, projection, sourceRoot, sourceRoot, entries);
+    const sourceAbsolutePath = path.resolve(PACKAGE_ROOT, projection.sourceRelativePath);
+    if (portable(path.relative(PACKAGE_ROOT, sourceAbsolutePath)) !== projection.sourceRelativePath) throw new Error(`seed source escapes package: ${projection.sourceRelativePath}`);
+    entries.push({
+      ...projection,
+      sourceAbsolutePath,
+      content: await readFile(sourceAbsolutePath, "utf8"),
+    });
   }
-
-  entries.sort((a, b) => a.outputRelativePath.localeCompare(b.outputRelativePath));
   return entries;
 }
 
 export async function createBootstrapSeedFileMap() {
   const entries = await getBootstrapSeedEntries();
-  const seedMap = new Map();
-  for (const entry of entries) {
-    seedMap.set(entry.outputRelativePath, entry.content);
-  }
-  return seedMap;
+  return new Map(entries.map((entry) => [entry.outputRelativePath, entry.content]));
 }

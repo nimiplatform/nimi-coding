@@ -1,0 +1,25 @@
+task: author_two_units
+allowed_inputs: [projected_authority_guide, task_authority, diagnostics]
+units:
+  - id: definition.order
+    profile: yaml
+    kind: definition
+    owner: team.orders
+    lifecycle: active
+    title: Order
+    meaning: A persisted purchase commitment created from an accepted checkout request.
+    relations: []
+  - id: rule.order-no-anonymous
+    profile: markdown
+    kind: rule
+    owner: team.orders
+    lifecycle: active
+    title: Anonymous order creation is prohibited
+    modality: must_not
+    scope: [api.orders]
+    statement: The orders API creates an order without a valid session.
+    condition: Always.
+    failure: Reject the request before persisting an order.
+    relations:
+      - type: applies_to
+        target: definition.order
