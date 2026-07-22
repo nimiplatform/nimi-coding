@@ -1,0 +1,89 @@
+version: 1
+spec:
+  id: nimicoding.authority-review.v1
+  owner: nimi-coding
+  status: active
+product_claim: one_explicit_Git_base_commit_and_one_stable_current_worktree_produce_an_exact_read_only_change_review_over_complete_canonical_snapshots
+command: nimicoding authority review <repository-path> --base <git-ref> --bindings <file> --dispositions <file> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+capture:
+  repository: exact_non_bare_Git_worktree_root
+  base_ref:
+    resolution: once_at_capture_start_to_immutable_full_commit_OID
+    later_use: full_OID_only
+    option_injection: refused
+  base_authority:
+    source: Git_object_database
+    root: .nimi/spec_tree_required
+    inventory: all_nested_tree_and_leaf_entries_without_suffix_filtering
+    admitted_entry_types: [tree, regular_blob_100644_or_100755]
+    refused: [symlink_blob, gitlink, unknown_mode_or_type, invalid_UTF-8_path, path_escape, duplicate_path, missing_object]
+  worktree_authority:
+    source: complete_live_filesystem_inventory_under_.nimi/spec
+    includes: [tracked_unchanged, tracked_modification, tracked_deletion, untracked_or_ignored_file, unsupported_regular_file]
+    refused: [missing_root, symlink, non_regular_entry, invalid_UTF-8_path, path_escape]
+    stability: retain_exact_directory_and_file_handles_while_capturing_paths_types_bytes_and_metadata_then_recapture_complete_live_inventory_and_revalidate_all_held_handles_at_capture_commit
+    race: any_path_type_byte_or_stability_metadata_change_refuses_the_whole_capture
+  materialization:
+    location: independent_0700_temporary_directory
+    isolation: physical_temporary_root_must_be_outside_worktree_and_Git_administration_roots_before_any_directory_is_created_and_is_rechecked_after_creation
+    validation: readback_paths_types_and_bytes_must_match_capture
+    cleanup: required_after_success_or_failure
+  Git_mutation: [checkout, stash, reset, stage, commit, branch_update, worktree_update, index_update]
+  Git_mutation_posture: forbidden
+snapshot_identity:
+  format: sha256_colon_lowercase_hex
+  domain: nimicoding.authority-snapshot-content/v1
+  inputs: sorted_repository_relative_regular_file_paths_entry_type_exact_byte_length_and_bytes
+  excludes: [base_ref_name, commit_OID, executable_bit, permissions, mtime, ctime, inode, absolute_path, temporary_path, traversal_order]
+  result:
+    base: [commitOid, contentIdentity, file_count, unit_count, byte_count]
+    worktree: [contentIdentity, file_count, unit_count, byte_count]
+oracles:
+  admission_and_counts: compileAuthorityPath_on_each_materialized_snapshot
+  semantic_delta: diffAuthorityPaths
+  declared_impact: impactAuthorityPaths
+  current_governance: auditAuthorityPath_on_worktree_snapshot_only
+  copied_Git_parser_IR_graph_diff_or_detector: forbidden
+product:
+  format: nimicoding.authority-review/v1
+  top_level_fields: [format, operationStatus, policyStatus, complete, partial, snapshots, components, diff, impact, audit, budgets]
+  operationStatus: completed
+  policyStatus:
+    blocked: current_audit_has_a_blocking_finding
+    indeterminate: no_blocking_finding_and_impact_or_audit_coverage_is_incomplete
+    passed: review_is_complete_and_current_audit_policy_passed
+  complete: impact_complete_and_audit_complete_independent_of_blocking_policy
+  partial: false
+  components: [snapshots, diff, impact, audit]
+  component_fields: [operationStatus, complete]
+  logical_products:
+    diff: nimicoding.authority-diff/v1
+    impact: nimicoding.authority-impact/v1
+    audit: nimicoding.authority-audit/v1
+  audit_claim: current_snapshot_only_without_before_after_finding_attribution
+budgets:
+  required: [maxUnits, maxEdges, maxBytes]
+  values: positive_safe_integers
+  units_and_edges: existing_audit_proof_traversal_semantics
+  component_bytes: same_explicit_maxBytes_passed_to_diff_impact_and_audit
+  review_bytes: UTF-8_bytes_of_compact_JSON.stringify_complete_review
+  overflow: AUTH_REVIEW_BUDGET_or_existing_component_budget_with_review_null_and_partial_false
+outcomes:
+  completed_passed: review_present_complete_true_policy_passed_exit_0
+  completed_blocked: review_present_policy_blocked_exit_1
+  completed_incomplete: review_present_complete_false_exit_1
+  refused: invalid_Git_corpus_binding_disposition_capture_transition_or_budget_returns_review_null_partial_false_exit_1
+  usage_error: missing_repeated_or_invalid_CLI_argument_exit_2_without_review_product
+  failed: uncaught_IO_resource_or_internal_failure_exit_2_without_review_product
+  unresolved_impact: only_AUTH_IMPACT_UNDISPOSED_preserves_complete_logical_review_with_complete_false
+  invalid_disposition: any_AUTH_IMPACT_DISPOSITION_INVALID_refuses_whole_review
+  required_audit_gap: preserves_complete_logical_review_with_complete_false
+  blocking_finding: preserves_complete_logical_review_without_claiming_finding_was_introduced_by_change
+boundaries:
+  writes_authority_or_project_files: false
+  durable_cache_database_history_or_receipt: none
+  SARIF_review_aggregation: none
+  heuristic_rename_split_merge_semantics: forbidden
+  PR_branch_policy_approval_comment_commit_release_or_task_orchestration: not_owned
+  arbitrary_shell_plugin_test_model_embedding_or_semantic_search_execution: forbidden
+  public_AuthorityIR_or_SourceMap_export: none

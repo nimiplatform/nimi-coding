@@ -39,6 +39,7 @@ pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direc
 pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authority-verifiers.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
+pnpm exec nimicoding authority review . --base origin/main --bindings .nimi/config/authority-verifiers.yaml --dispositions .nimi/local/authority-impact-dispositions.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 ```
 
 `discover` returns bounded deterministic lexical candidates when a task lacks an exact ID. It does not perform semantic search, select authority, attach context, claim complete recall, or prove absence on zero matches. After choosing an ID from task or product authority, call exact `query` or `context`. Candidate and byte bounds are explicit; failures return `discovery: null` and never silently remove candidates to fit bytes.
@@ -62,6 +63,8 @@ bindings:
 ```
 
 `impact` reports review obligations derived from declared relations. Disposition text does not prove that implementation, consumers, or tests are synchronized. Diff/impact budget failure returns no partial semantic payload.
+
+`review` resolves the explicit base ref once to a full commit OID, reads the complete base `.nimi/spec` tree from Git objects, and retains exact filesystem handles while it recaptures the complete current tree and performs a capture-commit revalidation. It includes tracked edits/deletions and untracked or unsupported entries; unsupported content still reaches the existing compiler and fails closed. Materialization is isolated outside the worktree and Git administration roots. The compact `nimicoding.authority-review/v1` result combines the existing semantic diff, declared impact, and deterministic audit of the captured current snapshot. It never checkout/stash/reset/stage/commit, does not attribute current findings to the change, and does not manage branches, PRs, approvals, or releases.
 
 Canonical YAML is a closed `format` + non-empty `units` container. Canonical Markdown is a bounded single-unit profile. Unit identity is explicit and independent of file names, ordering, moves, and regrouping. `authority check` recursively rejects unsupported files, symlinks, non-canonical bytes, illegal grammar, identity, owner/lifecycle, and relation semantics.
 
@@ -93,7 +96,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-Graph navigation and deterministic audit do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+Graph navigation, deterministic audit, and Git-aware review do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. Review is not a Git/PR workflow. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

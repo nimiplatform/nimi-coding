@@ -36,6 +36,7 @@ pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direc
 pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authority-verifiers.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
+pnpm exec nimicoding authority review . --base origin/main --bindings .nimi/config/authority-verifiers.yaml --dispositions .nimi/local/authority-impact-dispositions.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 ```
 
 `authority check` 是 `.nimi/spec` 唯一 conformance gate。它递归拒绝 unsupported file、symlink、非 canonical bytes，以及非法 grammar、identity、owner/lifecycle 与 relation。
@@ -61,6 +62,8 @@ bindings:
 ```
 
 `impact` 只报告由已声明关系导出的 review obligations；disposition 文本不能证明 implementation、consumer 或 test 已同步。Diff/impact 预算失败不返回 partial semantic payload。
+
+`review` 在 capture 开始时将显式 base ref 一次解析为 full commit OID，从 Git object database 读取完整 base `.nimi/spec`；current snapshot 会保留 exact filesystem handles，在完整 recapture 后执行 capture-commit 全量复核。Tracked edit/deletion、untracked 与 unsupported entry 都会进入 snapshot；unsupported content 仍由现有 compiler fail closed。Materialization 与 worktree/Git administration roots 物理隔离。紧凑的 `nimicoding.authority-review/v1` 直接组合现有 semantic diff、declared impact 与 captured current snapshot 的 deterministic audit。它不会 checkout/stash/reset/stage/commit，不把 current finding 归因为本次 change，也不管理 branch、PR、approval 或 release。
 
 ## Projection lifecycle
 
@@ -90,4 +93,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-Graph navigation 与 deterministic audit 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+Graph navigation、deterministic audit 与 Git-aware review 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。Review 不是 Git/PR workflow。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

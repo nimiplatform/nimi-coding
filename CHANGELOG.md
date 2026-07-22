@@ -8,6 +8,7 @@
 - Added byte-bounded compiler-output `authority diff` and explicit-relation `authority impact` with retained tombstones and fail-closed consumer/test dispositions.
 - Added fail-closed `authority refs`, `authority path`, and `authority subgraph` over explicit admitted relations with portable SourceMap locations, deterministic traversal, and hop/unit/edge/UTF-8 byte budgets.
 - Added project-bound deterministic `authority audit` with governance-bound observations/findings, required-coverage gaps, stable fingerprints, and SARIF 2.1.0 projection.
+- Added Git-aware exact `authority review`: one immutable base commit and one race-checked current worktree snapshot compose the existing compiler, diff, impact, and current-audit products without changing Git or authority.
 - Corrected public CLI pipe flushing so large JSON diagnostics and bounded semantic payloads complete before process exit.
 - Hard-cut the legacy reconstruction, taxonomy, table, generation-audit, placement, and spec-governance command plane; `authority check` is now the sole `.nimi/spec` conformance gate.
 - Contracted bootstrap/sync to one exact compact-guide projection plus managed instruction blocks; unrelated host files are ignored and exact deprecated projection paths fail closed.

@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 
@@ -64,48 +64,59 @@ function exactObject(value, fields) {
     && Object.keys(value).every((key) => fields.includes(key));
 }
 
-async function loadDispositions(file) {
-  const [bytes, contractText] = await Promise.all([readFile(file), readFile(contractUrl, "utf8")]);
+async function loadDispositions(file, label = file) {
+  const absolute = path.resolve(file);
+  let bytes;
+  try {
+    const info = await lstat(absolute);
+    if (info.isSymbolicLink() || !info.isFile()) {
+      return { ok: false, diagnostics: [invalidDisposition(label, "dispositions must be one regular non-symlink YAML file")] };
+    }
+    bytes = await readFile(absolute);
+  } catch (error) {
+    return { ok: false, diagnostics: [invalidDisposition(label, `disposition file is not readable: ${error.message}`)] };
+  }
+  const contractText = await readFile(contractUrl, "utf8");
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return { ok: false, diagnostics: [invalidDisposition(file, "disposition bytes are not valid UTF-8")] };
+    return { ok: false, diagnostics: [invalidDisposition(label, "disposition bytes are not valid UTF-8")] };
   }
   const document = YAML.parseDocument(text, { uniqueKeys: true, version: "1.2" });
-  if (document.errors.length > 0) return { ok: false, diagnostics: [invalidDisposition(file, document.errors[0].message)] };
+  if (document.errors.length > 0) return { ok: false, diagnostics: [invalidDisposition(label, document.errors[0].message)] };
   let data;
   try {
     data = document.toJS({ maxAliasCount: 0 });
   } catch (error) {
-    return { ok: false, diagnostics: [invalidDisposition(file, error.message)] };
+    return { ok: false, diagnostics: [invalidDisposition(label, error.message)] };
   }
   const contract = YAML.parse(contractText);
   if (!exactObject(data, contract.fields.top) || data.format !== contract.format || !Array.isArray(data.rules)) {
-    return { ok: false, diagnostics: [invalidDisposition(file, "dispositions require the exact format and rules list")] };
+    return { ok: false, diagnostics: [invalidDisposition(label, "dispositions require the exact format and rules list")] };
   }
   const entries = new Map();
   const ruleIds = new Set();
   const identifier = new RegExp(contract.identifier_pattern);
   for (const rule of data.rules) {
     if (!exactObject(rule, contract.fields.rule) || !identifier.test(rule.id) || !Array.isArray(rule.consumers) || !exactObject(rule.test, contract.fields.test)) {
-      return { ok: false, diagnostics: [invalidDisposition(file, "each rule requires exact id, consumers, and test fields")] };
+      return { ok: false, diagnostics: [invalidDisposition(label, "each rule requires exact id, consumers, and test fields")] };
     }
-    if (ruleIds.has(rule.id)) return { ok: false, diagnostics: [invalidDisposition(file, `duplicate rule disposition: ${rule.id}`)] };
+    if (ruleIds.has(rule.id)) return { ok: false, diagnostics: [invalidDisposition(label, `duplicate rule disposition: ${rule.id}`)] };
     ruleIds.add(rule.id);
     for (const consumer of rule.consumers) {
       if (!exactObject(consumer, contract.fields.consumer) || !identifier.test(consumer.scope) || consumer.status !== contract.status || typeof consumer.evidence !== "string" || consumer.evidence.trim() !== consumer.evidence || consumer.evidence.length === 0) {
-        return { ok: false, diagnostics: [invalidDisposition(file, `invalid consumer disposition for ${rule.id}`)] };
+        return { ok: false, diagnostics: [invalidDisposition(label, `invalid consumer disposition for ${rule.id}`)] };
       }
       const key = `${rule.id}\0consumer\0${consumer.scope}`;
-      if (entries.has(key)) return { ok: false, diagnostics: [invalidDisposition(file, `duplicate disposition for ${rule.id} consumer ${consumer.scope}`)] };
+      if (entries.has(key)) return { ok: false, diagnostics: [invalidDisposition(label, `duplicate disposition for ${rule.id} consumer ${consumer.scope}`)] };
       entries.set(key, { ruleId: rule.id, type: "consumer", target: consumer.scope, status: consumer.status, evidence: consumer.evidence });
     }
     if (rule.test.status !== contract.status || typeof rule.test.evidence !== "string" || rule.test.evidence.trim() !== rule.test.evidence || rule.test.evidence.length === 0) {
-      return { ok: false, diagnostics: [invalidDisposition(file, `invalid test disposition for ${rule.id}`)] };
+      return { ok: false, diagnostics: [invalidDisposition(label, `invalid test disposition for ${rule.id}`)] };
     }
     const testKey = `${rule.id}\0test\0${rule.id}`;
-    if (entries.has(testKey)) return { ok: false, diagnostics: [invalidDisposition(file, `duplicate rule disposition: ${rule.id}`)] };
+    if (entries.has(testKey)) return { ok: false, diagnostics: [invalidDisposition(label, `duplicate rule disposition: ${rule.id}`)] };
     entries.set(testKey, { ruleId: rule.id, type: "test", target: rule.id, status: rule.test.status, evidence: rule.test.evidence });
   }
   return { ok: true, diagnostics: [], entries };
@@ -175,12 +186,12 @@ async function unitLocation(diffResult, id) {
   return { file: ".", range: { start: { line: 1, column: 1 }, end: { line: 1, column: 1 } }, sourcePointer: "/id" };
 }
 
-export async function impactAuthorityPaths(beforePath, afterPath, dispositionsPath, { maxBytes = null } = {}) {
+export async function impactAuthorityPaths(beforePath, afterPath, dispositionsPath, { maxBytes = null, dispositionLabel = null } = {}) {
   const diffResult = await diffAuthorityPaths(beforePath, afterPath);
   if (!diffResult.ok) return { ...diffResult, impact: null };
   diffResult.beforePath = beforePath;
   diffResult.afterPath = afterPath;
-  const parsed = await loadDispositions(dispositionsPath);
+  const parsed = await loadDispositions(dispositionsPath, dispositionLabel ?? dispositionsPath);
   if (!parsed.ok) {
     const budget = overBudget(diffResult, null, maxBytes);
     if (budget.failure) return budget.failure;
@@ -214,7 +225,7 @@ export async function impactAuthorityPaths(beforePath, afterPath, dispositionsPa
   }
   for (const [key, disposition] of parsed.entries) {
     if (requiredKeys.has(key)) continue;
-    diagnostics.push(invalidDisposition(dispositionsPath, `disposition does not match a required impact obligation: ${disposition.ruleId} ${disposition.type} ${disposition.target}`));
+    diagnostics.push(invalidDisposition(dispositionLabel ?? dispositionsPath, `disposition does not match a required impact obligation: ${disposition.ruleId} ${disposition.type} ${disposition.target}`));
   }
   const disposed = required.map((obligation) => ({
     ...obligation,

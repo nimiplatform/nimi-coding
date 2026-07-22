@@ -88,9 +88,9 @@ function syntaxLocation(error, file, locator) {
   };
 }
 
-async function loadBindings(file) {
+async function loadBindings(file, labelOverride = null) {
   const absolute = path.resolve(file);
-  const label = portablePath(absolute);
+  const label = labelOverride ?? portablePath(absolute);
   let bytes;
   try {
     const info = await lstat(absolute);
@@ -294,13 +294,13 @@ export function canonicalAuditBytes(audit) {
   return Buffer.byteLength(JSON.stringify(audit), "utf8");
 }
 
-export async function auditAuthorityPath(inputPath, bindingsPath, { maxUnits, maxEdges, maxBytes }) {
+export async function auditAuthorityPath(inputPath, bindingsPath, { maxUnits, maxEdges, maxBytes, bindingLabel = null }) {
   if (![maxUnits, maxEdges, maxBytes].every(validBudget)) {
     return refused(null, [auditBudgetDiagnostic("positive safe-integer budget values", "all", "invalid")]);
   }
   const compiled = await compileAuthorityPath(inputPath);
   if (!compiled.ok) return refused(compiled, compiled.diagnostics);
-  const parsedBindings = await loadBindings(bindingsPath);
+  const parsedBindings = await loadBindings(bindingsPath, bindingLabel);
   if (!parsedBindings.ok) return refused(compiled, parsedBindings.diagnostics);
   const absoluteInput = path.resolve(inputPath);
   const inputInfo = await stat(absoluteInput);
