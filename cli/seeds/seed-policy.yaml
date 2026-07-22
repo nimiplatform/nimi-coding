@@ -1,15 +1,10 @@
-policy_id: nimicoding.seed-projection.v2
-description: Exact deny-by-default downstream projection allowlist.
+policy_id: nimicoding.seed-projection.v3
+description: Exact downstream projection registry for canonical authority authoring.
 projections:
-  - source: config/spec-generation-inputs.yaml
-    output: .nimi/config/spec-generation-inputs.yaml
-    ownership: host_state_seed
-    downstream_consumer: project team edits declared reconstruction inputs
-  - source: contracts/domain-admission.schema.yaml
-    output: .nimi/contracts/domain-admission.schema.yaml
-    ownership: host_profile_override
-    downstream_consumer: project profile owns admitted domain declarations
   - source: methodology/authority-authoring.yaml
     output: .nimi/methodology/authority-authoring.yaml
     ownership: package_canonical
-    downstream_consumer: normal project AI reads the compact authoring guide
+    downstream_consumer: project AI reads the compact canonical authority authoring guide
+deprecated_projections:
+  - .nimi/config/spec-generation-inputs.yaml
+  - .nimi/contracts/domain-admission.schema.yaml

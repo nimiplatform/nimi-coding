@@ -13,16 +13,16 @@ required_workflow:
   - Compile only after check succeeds.
 context_workflow:
   - Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one exact admitted unit.
-  - Use nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json when the task needs the root's declared outgoing applies_to and supersedes dependencies.
+  - Use nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json only when the task needs the complete declared outgoing interpretation closure over applies_to and supersedes; this is not complete task context.
   - Both commands require an explicit UTF-8 packet byte budget; context additionally requires a unit budget. AUTH_CONTEXT_BUDGET returns no partial packet.
   - Treat AUTH_QUERY_NOT_FOUND, compiler diagnostics, and AUTH_CONTEXT_BUDGET as hard failures; never continue with guessed or partial context.
-  - Read only the returned packet, task authority, this guide, and diagnostics; do not wildcard-read .nimi/contracts or the complete authority corpus.
+  - Read only the returned packet, task authority, this guide, and diagnostics; do not treat the packet as complete task context or wildcard-read .nimi/contracts or the complete authority corpus.
   - Context is read-only derived data. It never replaces or modifies product authority under .nimi/spec.
 change_workflow:
   - Compare two complete canonical authority inputs with nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> --json; formatting/profile-only differences produce no semantic changes.
   - Use nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> --json to follow only explicit reverse applies_to and supersedes dependencies.
   - Both commands require a UTF-8 byte budget for the complete compact semantic payload. AUTH_DIFF_BUDGET or AUTH_IMPACT_BUDGET returns null diff/impact; never continue with partial output.
-  - Every impacted active rule requires addressed evidence for each before/after scope consumer and one test obligation. Missing or extra dispositions fail; never infer completion.
+  - Every impacted active rule requires addressed evidence for each before/after scope consumer and one test obligation. These are declared review obligations only: the command does not prove implementation, consumers, or tests are synchronized. Missing or extra dispositions fail; never infer completion.
   - Keep disposition evidence outside product authority, normally under .nimi/local; it records declared review evidence and never changes source semantics.
 disposition_authoring:
   discovery:
@@ -154,6 +154,7 @@ fail_closed:
   - check and compile reject non-canonical bytes, incomplete semantics, illegal lifecycle, identity conflicts, and invalid typed relations.
   - compile emits no partial result and no public IR.
   - Derived outputs are disposable and never product authority.
+  - Files under .nimi/spec that are not canonical *.authority.yaml or *.authority.md sources are unsupported; historical formats are neither inferred nor admitted.
 diagnostics:
   location: Ranges are 1-based Unicode-scalar half-open ranges; missing fields point to their containing mapping or section's canonical insertion point.
   conflicts: The primary diagnostic carries sorted related locations for other declarations or edges.

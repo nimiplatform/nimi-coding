@@ -1,31 +1,31 @@
-version: 3
+version: 4
 product:
   package_name: "@nimiplatform/nimi-coding"
-  mission: methodology_spec_construction_and_deterministic_validation
+  mission: canonical_authority_methodology_formatter_compiler_primitives_and_deterministic_gates
 owned_surfaces:
-  - bootstrap_and_sync_of_managed_.nimi_projections
-  - methodology_principles
-  - spec_surface_taxonomy_and_placement_contracts
-  - spec_construction_inputs_and_generation_audit_contracts
-  - deterministic_spec_governance_and_ai_governance_checks
-  - canonical_authority_format_check_and_private_compile_kernel
-  - exact_authority_query_and_complete_bounded_context_packets
-  - complete_byte_bounded_semantic_authority_diff_and_declared_relation_impact
+  - compact_authority_authoring_methodology
+  - exact_authority_guide_projection_and_managed_instruction_blocks
+  - canonical_authority_format_and_complete_root_check
+  - private_compile_exact_query_and_declared_outgoing_context
+  - semantic_diff_and_declared_review_impact
+  - optional_L3_repository_governance_not_authority_admission
+canonical_boundary:
+  host_product_authority: .nimi/spec/**/*.authority.{yaml,md}
+  sole_conformance_gate: nimicoding_authority_check_complete_.nimi/spec
+  historical_format_inference: forbidden
+  product_semantic_generation: forbidden
+surface_separation:
+  public: [documented_CLI, package_documentation]
+  canonical_project_owned: .nimi/spec/**/*.authority.{yaml,md}
+  projected_AI_visible_package_owned: [.nimi/methodology/authority-authoring.yaml, AGENTS.md#managed-block, CLAUDE.md#managed-block]
+  local_non_authority: .nimi/local/**
+  package_internal: [authority_grammar_contracts, AuthorityIR, SourceMap, compiler_implementation]
 out_of_scope:
-  - planning_or_task_lifecycle
-  - agent_or_provider_orchestration
-  - implementation_execution
-  - review_approval_or_completion_state
-  - host_prompt_or_context_management
-  - scheduling_notifications_and_automation
-  - authority_storage_search_visualization_and_ai_execution
-integration_contract:
-  host_owns_execution: true
-  nimi_coding_may_emit_non_mutating_analysis: true
-  nimi_coding_may_validate_declared_artifacts: true
-  nimi_coding_must_not_create_host_execution_state: true
-canonical_roots:
-  package_authority: package://@nimiplatform/nimi-coding
-  host_product_authority: .nimi/spec
-  managed_projection_roots: [.nimi/config, .nimi/contracts, .nimi/methodology]
-  local_non_authority_root: .nimi/local
+  - reconstruction_taxonomy_tables_guidance_registries_and_generation_audits
+  - profile_specific_authority_validation
+  - planning_task_lifecycle_delegation_execution_review_or_approval
+  - host_workflow_command_aggregation
+  - sqlite_cache_incremental_embedding_search_visualization_AI_execution_or_Atlas
+claims:
+  context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
+  impact: declared_review_obligation_not_sync_or_completion_proof

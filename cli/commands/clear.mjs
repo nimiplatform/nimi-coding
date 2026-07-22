@@ -4,6 +4,7 @@ import process from "node:process";
 import {
   previewBootstrapRemoval,
   previewEntrypointRemoval,
+  preflightManagedProjectPaths,
   removeManagedBootstrapFiles,
   removeManagedEntrypoints,
 } from "../lib/shared.mjs";
@@ -70,8 +71,19 @@ export async function runClear(args) {
   }
 
   const projectRoot = process.cwd();
-  const entrypointPreview = await previewEntrypointRemoval(projectRoot);
-  const bootstrapPreview = await previewBootstrapRemoval(projectRoot);
+  let entrypointPreview;
+  let bootstrapPreview;
+  try {
+    await preflightManagedProjectPaths(projectRoot);
+    entrypointPreview = await previewEntrypointRemoval(projectRoot);
+    bootstrapPreview = await previewBootstrapRemoval(projectRoot);
+  } catch (error) {
+    process.stderr.write(localize(
+      `nimicoding clear refused: ${error.message}.\n`,
+      `nimicoding clear 已拒绝：${error.message}。\n`,
+    ));
+    return 2;
+  }
 
   if (canPromptInteractively() && !parsed.options.yes) {
     process.stdout.write(`${styleHeading(localize(`nimicoding clear: ${projectRoot}`, `nimicoding clear：${projectRoot}`))}
@@ -88,7 +100,6 @@ ${formatList(
 ${styleLabel(localize("What I will keep:", "我会保留的内容："))}
   - .nimi/spec/**
   - .nimi/local/**
-  - .nimi/cache/**
 ${bootstrapPreview.preservedModifiedFiles.length > 0
     ? `\n${styleMuted(localize("I also found package-owned bootstrap files that were changed locally, so I will leave them in place:", "我还发现了一些包拥有的 bootstrap 文件已被本地修改，因此我会保留它们："))}\n${bootstrapPreview.preservedModifiedFiles.map((filePath) => `  - ${filePath}`).join("\n")}`
     : ""}
@@ -106,7 +117,6 @@ ${localize("  - nothing needed clearing", "  - 没有需要清理的内容")}
 ${styleLabel(localize("What I kept:", "我保留的内容："))}
   - .nimi/spec/**
   - .nimi/local/**
-  - .nimi/cache/**
 
 ${styleMuted(localize("No nimicoding-managed bootstrap files or managed AI blocks were found.", "没有检测到 nimicoding 托管的 bootstrap 文件或托管 AI 区块。"))}
 `);
@@ -127,8 +137,19 @@ ${styleMuted(localize("No files were changed.", "没有修改任何文件。"))}
     }
   }
 
-  const removedEntrypoints = await removeManagedEntrypoints(projectRoot);
-  const removedBootstrap = await removeManagedBootstrapFiles(projectRoot);
+  let removedEntrypoints;
+  let removedBootstrap;
+  try {
+    await preflightManagedProjectPaths(projectRoot);
+    removedEntrypoints = await removeManagedEntrypoints(projectRoot);
+    removedBootstrap = await removeManagedBootstrapFiles(projectRoot);
+  } catch (error) {
+    process.stderr.write(localize(
+      `nimicoding clear refused: ${error.message}.\n`,
+      `nimicoding clear 已拒绝：${error.message}。\n`,
+    ));
+    return 2;
+  }
 
   process.stdout.write(`${styleHeading(localize(`nimicoding clear: ${projectRoot}`, `nimicoding clear：${projectRoot}`))}
 
@@ -146,7 +167,6 @@ ${formatList(
 ${styleLabel(localize("What I kept:", "我保留的内容："))}
   - .nimi/spec/**
   - .nimi/local/**
-  - .nimi/cache/**
 ${removedBootstrap.preservedModifiedFiles.length > 0
     ? `\n${removedBootstrap.preservedModifiedFiles.map((filePath) => `  - ${localize("kept because it was modified", "已保留，因为它已被修改")}: ${filePath}`).join("\n")}`
     : ""}

@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   integrateEntrypoints,
   pathExists,
+  preflightManagedProjectPaths,
   previewBootstrapWrites,
   previewEntrypointIntegration,
   writeMissingBootstrapFiles,
@@ -33,24 +34,29 @@ export async function runStart(args) {
   }
 
   const projectRoot = process.cwd();
-  const nimiRoot = path.join(projectRoot, ".nimi");
-  const nimiInfo = await pathExists(nimiRoot);
-  if (nimiInfo && !nimiInfo.isDirectory()) {
+  let bootstrap;
+  let entrypoints;
+  try {
+    await preflightManagedProjectPaths(projectRoot);
+    const nimiRoot = path.join(projectRoot, ".nimi");
+    const nimiInfo = await pathExists(nimiRoot);
+    if (nimiInfo && !nimiInfo.isDirectory()) throw new Error(`${nimiRoot} exists and is not a directory`);
+
+    const bootstrapPreview = await previewBootstrapWrites(projectRoot);
+    const entrypointPreview = await previewEntrypointIntegration(projectRoot);
+    bootstrap = bootstrapPreview.hasWork
+      ? await writeMissingBootstrapFiles(projectRoot)
+      : { createdFiles: [], updatedFiles: [], createdDirs: [], gitignoreUpdated: false };
+    entrypoints = entrypointPreview.length > 0
+      ? await integrateEntrypoints(projectRoot)
+      : [];
+  } catch (error) {
     process.stderr.write(localize(
-      `nimicoding start refused: ${nimiRoot} exists and is not a directory.\n`,
-      `nimicoding start 已拒绝：${nimiRoot} 已存在且不是目录。\n`,
+      `nimicoding start refused: ${error.message}.\n`,
+      `nimicoding start 已拒绝：${error.message}。\n`,
     ));
     return 2;
   }
-
-  const bootstrapPreview = await previewBootstrapWrites(projectRoot);
-  const entrypointPreview = await previewEntrypointIntegration(projectRoot);
-  const bootstrap = bootstrapPreview.hasWork
-    ? await writeMissingBootstrapFiles(projectRoot)
-    : { createdFiles: [], createdDirs: [], gitignoreUpdated: false };
-  const entrypoints = entrypointPreview.length > 0
-    ? await integrateEntrypoints(projectRoot)
-    : [];
 
   const output = {
     ok: true,
@@ -58,9 +64,9 @@ export async function runStart(args) {
     bootstrap,
     entrypoints,
     next: [
-      "Build or update canonical product authority under .nimi/spec.",
-      "Run nimicoding validate-spec-tree.",
-      "Run nimicoding validate-spec-audit when generation audit evidence exists.",
+      "Author project-owned canonical authority under .nimi/spec using only *.authority.yaml or *.authority.md.",
+      "Run nimicoding authority fmt on each changed authority file.",
+      "Run nimicoding authority check .nimi/spec on the complete canonical root.",
     ],
   };
 

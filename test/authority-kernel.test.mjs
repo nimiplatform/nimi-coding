@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, link, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -489,6 +489,122 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal(installed.code, 0, installed.stderr || installed.stdout);
   const bin = path.join(consumer, "node_modules", ".bin", "nimicoding");
 
+  const attackSentinel = path.join(root, "packed-attack-sentinel.bin");
+  const sentinelBytes = Buffer.from("packed\u0000attack\n", "utf8");
+  await writeFile(attackSentinel, sentinelBytes);
+
+  const finalSymlinkAttack = path.join(root, "packed-final-symlink");
+  await mkdir(finalSymlinkAttack);
+  await symlink(attackSentinel, path.join(finalSymlinkAttack, "AGENTS.md"));
+  assert.equal((await runExecutable(bin, ["start", "--yes"], finalSymlinkAttack)).code, 2);
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const externalNimi = path.join(root, "packed-external-nimi");
+  const parentSymlinkAttack = path.join(root, "packed-parent-symlink");
+  await mkdir(externalNimi);
+  await mkdir(parentSymlinkAttack);
+  await writeFile(path.join(externalNimi, "sentinel.bin"), sentinelBytes);
+  await symlink(externalNimi, path.join(parentSymlinkAttack, ".nimi"));
+  assert.equal((await runExecutable(bin, ["sync", "--apply", "--json"], parentSymlinkAttack)).code, 2);
+  assert.deepEqual(await readFile(path.join(externalNimi, "sentinel.bin")), sentinelBytes);
+  assert.deepEqual((await readdir(externalNimi)).sort(), ["sentinel.bin"]);
+
+  const brokenSymlinkAttack = path.join(root, "packed-broken-symlink");
+  await mkdir(path.join(brokenSymlinkAttack, ".nimi/config"), { recursive: true });
+  await symlink(path.join(root, "packed-missing-target"), path.join(brokenSymlinkAttack, ".nimi/config/spec-generation-inputs.yaml"));
+  assert.equal((await runExecutable(bin, ["sync", "--check", "--json"], brokenSymlinkAttack)).code, 2);
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const localConflictAttack = path.join(root, "packed-local-conflict");
+  await mkdir(path.join(localConflictAttack, ".nimi"), { recursive: true });
+  await writeFile(path.join(localConflictAttack, ".nimi/local"), "ordinary file\n", "utf8");
+  assert.equal((await runExecutable(bin, ["doctor", "--json"], localConflictAttack)).code, 2);
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const blockAttack = path.join(root, "packed-block-attack");
+  await mkdir(blockAttack);
+  assert.equal((await runExecutable(bin, ["start", "--yes"], blockAttack)).code, 0);
+  const duplicateBlock = [
+    "# Host", "", "<!-- nimicoding:managed:agents:start -->", "one", "<!-- nimicoding:managed:agents:end -->",
+    "<!-- nimicoding:managed:agents:start -->", "two", "<!-- nimicoding:managed:agents:end -->", "",
+  ].join("\n");
+  await writeFile(path.join(blockAttack, "AGENTS.md"), duplicateBlock, "utf8");
+  const blockGuideBefore = await readFile(path.join(blockAttack, ".nimi/methodology/authority-authoring.yaml"));
+  const blockClaudeBefore = await readFile(path.join(blockAttack, "CLAUDE.md"));
+  assert.equal((await runExecutable(bin, ["sync", "--apply", "--json"], blockAttack)).code, 2);
+  assert.equal((await runExecutable(bin, ["clear", "--yes"], blockAttack)).code, 2);
+  assert.deepEqual(await readFile(path.join(blockAttack, "AGENTS.md")), Buffer.from(duplicateBlock, "utf8"));
+  assert.deepEqual(await readFile(path.join(blockAttack, ".nimi/methodology/authority-authoring.yaml")), blockGuideBefore);
+  assert.deepEqual(await readFile(path.join(blockAttack, "CLAUDE.md")), blockClaudeBefore);
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const gitignoreAttack = path.join(root, "packed-gitignore-comment");
+  await mkdir(gitignoreAttack);
+  await writeFile(path.join(gitignoreAttack, ".gitignore"), "# .nimi/local/\nhost/**\n", "utf8");
+  assert.equal((await runExecutable(bin, ["start", "--yes"], gitignoreAttack)).code, 0);
+  assert.equal(await readFile(path.join(gitignoreAttack, ".gitignore"), "utf8"), "# .nimi/local/\nhost/**\n.nimi/local/\n");
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const clearSpanAttack = path.join(root, "packed-clear-span");
+  await mkdir(clearSpanAttack);
+  assert.equal((await runExecutable(bin, ["start", "--yes"], clearSpanAttack)).code, 0);
+  for (const [target, begin, end] of [
+    ["AGENTS.md", "<!-- nimicoding:managed:agents:start -->", "<!-- nimicoding:managed:agents:end -->"],
+    ["CLAUDE.md", "<!-- nimicoding:managed:claude:start -->", "<!-- nimicoding:managed:claude:end -->"],
+  ]) {
+    const installedText = await readFile(path.join(clearSpanAttack, target), "utf8");
+    const blockStart = installedText.indexOf(begin);
+    const blockEnd = installedText.indexOf(end) + end.length;
+    const block = installedText.slice(blockStart, blockEnd);
+    await writeFile(path.join(clearSpanAttack, target), `\nPACKED:${target}:PREFIX  \n${block}\nPACKED:${target}:SUFFIX  `, "utf8");
+  }
+  assert.equal((await runExecutable(bin, ["clear", "--yes"], clearSpanAttack)).code, 0);
+  for (const target of ["AGENTS.md", "CLAUDE.md"]) {
+    assert.deepEqual(await readFile(path.join(clearSpanAttack, target)), Buffer.from(`\nPACKED:${target}:PREFIX  \n\nPACKED:${target}:SUFFIX  `, "utf8"));
+  }
+
+  const headerAttack = path.join(root, "packed-header-envelope");
+  await mkdir(headerAttack);
+  await writeFile(path.join(headerAttack, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  await writeFile(path.join(headerAttack, "CLAUDE.md"), "# CLAUDE.md\n", "utf8");
+  assert.equal((await runExecutable(bin, ["start", "--yes"], headerAttack)).code, 0);
+  assert.equal((await runExecutable(bin, ["clear", "--yes"], headerAttack)).code, 0);
+  assert.match(await readFile(path.join(headerAttack, "AGENTS.md"), "utf8"), /^# AGENTS\.md/);
+  assert.match(await readFile(path.join(headerAttack, "CLAUDE.md"), "utf8"), /^# CLAUDE\.md/);
+
+  const invalidUtf8Attack = path.join(root, "packed-invalid-host-utf8");
+  await mkdir(invalidUtf8Attack);
+  assert.equal((await runExecutable(bin, ["start", "--yes"], invalidUtf8Attack)).code, 0);
+  const invalidHostBytes = Buffer.from([0x68, 0xc3, 0x28, 0x0a]);
+  await writeFile(path.join(invalidUtf8Attack, "AGENTS.md"), invalidHostBytes);
+  const invalidGuideBefore = await readFile(path.join(invalidUtf8Attack, ".nimi/methodology/authority-authoring.yaml"));
+  const invalidClaudeBefore = await readFile(path.join(invalidUtf8Attack, "CLAUDE.md"));
+  assert.equal((await runExecutable(bin, ["sync", "--apply", "--json"], invalidUtf8Attack)).code, 2);
+  assert.deepEqual(await readFile(path.join(invalidUtf8Attack, "AGENTS.md")), invalidHostBytes);
+  assert.deepEqual(await readFile(path.join(invalidUtf8Attack, ".nimi/methodology/authority-authoring.yaml")), invalidGuideBefore);
+  assert.deepEqual(await readFile(path.join(invalidUtf8Attack, "CLAUDE.md")), invalidClaudeBefore);
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
+  const hardlinkAttack = path.join(root, "packed-hardlink");
+  const hardlinkSentinel = path.join(root, "packed-hardlink-sentinel.bin");
+  const hardlinkBytes = Buffer.from("packed-hardlink\u0000unchanged\n", "utf8");
+  await mkdir(path.join(hardlinkAttack, ".nimi/methodology"), { recursive: true });
+  await writeFile(hardlinkSentinel, hardlinkBytes);
+  await link(hardlinkSentinel, path.join(hardlinkAttack, ".nimi/methodology/authority-authoring.yaml"));
+  assert.equal((await runExecutable(bin, ["start", "--yes"], hardlinkAttack)).code, 2);
+  assert.deepEqual(await readFile(hardlinkSentinel), hardlinkBytes);
+  assert.deepEqual(await readFile(path.join(hardlinkAttack, ".nimi/methodology/authority-authoring.yaml")), hardlinkBytes);
+
+  const effectiveIgnoreAttack = path.join(root, "packed-effective-ignore");
+  await mkdir(effectiveIgnoreAttack);
+  await writeFile(path.join(effectiveIgnoreAttack, ".gitignore"), ".nimi/local/\n!.nimi/local/\nhost/**\n", "utf8");
+  assert.equal((await runExecutable("git", ["init", "-q"], effectiveIgnoreAttack)).code, 0);
+  assert.equal((await runExecutable(bin, ["start", "--yes"], effectiveIgnoreAttack)).code, 0);
+  await writeFile(path.join(effectiveIgnoreAttack, ".nimi/local/probe"), "probe\n", "utf8");
+  assert.equal((await runExecutable("git", ["check-ignore", "-q", ".nimi/local/probe"], effectiveIgnoreAttack)).code, 0);
+  assert.equal(await readFile(path.join(effectiveIgnoreAttack, ".gitignore"), "utf8"), ".nimi/local/\n!.nimi/local/\nhost/**\n.nimi/local/\n");
+  assert.deepEqual(await readFile(attackSentinel), sentinelBytes);
+
   const invalidLarge = path.join(consumer, "invalid-large.authority.yaml");
   await writeFile(invalidLarge, [
     "format: nimicoding.authority/v1",
@@ -604,43 +720,24 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal(packedDiff.code, 0);
   assert.equal(JSON.parse(packedDiff.stdout).diff.summary.changes, 1);
   assert.equal((await runExecutable(bin, ["start", "--yes"], consumer)).code, 0);
-  await writeFile(path.join(consumer, ".nimi/config/host-overlay.yaml"), "version: 1\nhost_overlay: {}\n", "utf8");
-  await writeFile(path.join(consumer, ".nimi/config/spec-layout.yaml"), [
-    "version: 1",
-    "contract_ref: package://@nimiplatform/nimi-coding/contracts/spec-layout.schema.yaml",
-    "spec_layout:",
-    "  canonical_root: .nimi/spec",
-    "  host_instruction_paths: []",
-    "  tracked_derived_projections: []",
-    "  table_family_extensions: []",
-    "",
-  ].join("\n"), "utf8");
-  await writeFile(path.join(consumer, ".nimi/config/governance.yaml"), "profile_id: fixture\nspec_governance: {}\nai_governance: {}\n", "utf8");
-  const packedProjectionClassification = await runExecutable(bin, ["classify-spec-tree", "--root", ".nimi", "--json"], consumer);
-  assert.equal(packedProjectionClassification.code, 0, packedProjectionClassification.stdout || packedProjectionClassification.stderr);
-  const packedProjectionEntries = new Map(JSON.parse(packedProjectionClassification.stdout).inventory.inventory.map((entry) => [entry.source_path, entry]));
-  assert.equal(packedProjectionEntries.get(".nimi/methodology/authority-authoring.yaml").owner, "nimi-coding");
-  for (const ref of [".nimi/config/spec-generation-inputs.yaml", ".nimi/contracts/domain-admission.schema.yaml", ".nimi/config/spec-layout.yaml", ".nimi/config/governance.yaml"]) {
-    assert.equal(packedProjectionEntries.get(ref).owner, "product_host");
+  await mkdir(path.join(consumer, ".nimi/config"), { recursive: true });
+  await mkdir(path.join(consumer, ".nimi/contracts"), { recursive: true });
+  await writeFile(path.join(consumer, ".nimi/config/project.yaml"), "project: true\n", "utf8");
+  await writeFile(path.join(consumer, ".nimi/contracts/project.schema.yaml"), "version: 1\n", "utf8");
+  await writeFile(path.join(consumer, ".nimi/methodology/project-notes.md"), "# Host notes\n", "utf8");
+  assert.equal((await runExecutable(bin, ["sync", "--check", "--json"], consumer)).code, 0);
+  for (const command of ["classify-spec-tree", "validate-placement", "validate-spec-tree"]) {
+    const unavailable = await runExecutable(bin, [command], consumer);
+    assert.equal(unavailable.code, 2, command);
+    assert.match(unavailable.stderr, new RegExp(`Unknown command: ${command}`));
   }
-  assert.equal(packedProjectionEntries.get(".nimi/config/host-overlay.yaml").owner, "host_projection");
-  const packedAttackRef = ".nimi/contracts/not-in-seed-allowlist.schema.yaml";
-  await writeFile(path.join(consumer, packedAttackRef), "version: 1\n", "utf8");
-  for (const command of ["classify-spec-tree", "validate-placement"]) {
-    const blocked = await runExecutable(bin, [command, "--root", ".nimi", "--json"], consumer);
-    assert.equal(blocked.code, 1, `${command}: ${blocked.stdout || blocked.stderr}`);
-    assert.match(blocked.stdout, /unclassified_file/);
-    if (command === "classify-spec-tree") {
-      const attack = JSON.parse(blocked.stdout).inventory.inventory.find((entry) => entry.source_path === packedAttackRef);
-      assert.equal(attack.current_inferred_class, "unclassified");
-      assert.equal(attack.disposition, "block");
-      assert.notEqual(attack.owner, "nimi-coding");
-    }
-  }
-  const packedAttackSync = await runExecutable(bin, ["sync", "--check", "--json"], consumer);
-  assert.equal(packedAttackSync.code, 1, packedAttackSync.stdout || packedAttackSync.stderr);
-  assert(JSON.parse(packedAttackSync.stdout).checkFailures.some((entry) => entry.outputRelativePath === packedAttackRef && entry.status === "unexpected_unadmitted_path"));
-  await rm(path.join(consumer, packedAttackRef));
+  const deprecated = path.join(consumer, ".nimi/config/spec-generation-inputs.yaml");
+  await writeFile(deprecated, "host: preserved\n", "utf8");
+  const deprecatedSync = await runExecutable(bin, ["sync", "--check", "--json"], consumer);
+  assert.equal(deprecatedSync.code, 1);
+  assert(JSON.parse(deprecatedSync.stdout).checkFailures.some((entry) => entry.outputRelativePath === ".nimi/config/spec-generation-inputs.yaml" && entry.status === "deprecated_projection_path"));
+  assert.equal(await readFile(deprecated, "utf8"), "host: preserved\n");
+  await rm(deprecated);
   const guide = path.join(consumer, ".nimi", "methodology", "authority-authoring.yaml");
   const projectedGuide = YAML.parse(await readFile(guide, "utf8"));
   const missingDispositions = path.join(consumer, "missing-impact-dispositions.yaml");
@@ -666,15 +763,11 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal((await runExecutable(bin, ["authority", "check", markdownCorpus, "--json"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "compile", markdownCorpus, "--json"], consumer)).code, 0);
   assert.deepEqual(await listFiles(path.join(consumer, ".nimi")), [
-    "config/governance.yaml",
-    "config/host-overlay.yaml",
-    "config/spec-generation-inputs.yaml",
-    "config/spec-layout.yaml",
-    "contracts/domain-admission.schema.yaml",
+    "config/project.yaml",
+    "contracts/project.schema.yaml",
     "methodology/authority-authoring.yaml",
+    "methodology/project-notes.md",
   ]);
-  assert.match(await readFile(path.join(consumer, ".nimi/config/spec-generation-inputs.yaml"), "utf8"), /contract_ref: package:\/\//);
-  assert.match(await readFile(path.join(consumer, ".nimi/contracts/domain-admission.schema.yaml"), "utf8"), /shared_enum_ref: package:\/\//);
   assert.equal((await runExecutable(bin, ["sync", "--check", "--json"], consumer)).code, 0);
   await writeFile(guide, "version: tampered\n", "utf8");
   assert.equal((await runExecutable(bin, ["authority", "compile", corpus, "--json"], consumer)).code, 0);

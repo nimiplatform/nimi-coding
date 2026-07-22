@@ -23,49 +23,13 @@ function normalizeGovernanceConfig(parsed) {
   }
 
   const profileId = typeof parsed.profile_id === "string" ? parsed.profile_id.trim() : null;
-  const specGovernance = isPlainObject(parsed.spec_governance) ? parsed.spec_governance : {};
   const aiGovernance = isPlainObject(parsed.ai_governance) ? parsed.ai_governance : {};
   const agentsFreshness = isPlainObject(aiGovernance.agents_freshness)
     ? aiGovernance.agents_freshness
     : {};
 
-  function normalizeCommandMap(section) {
-    if (!isPlainObject(section)) {
-      return {};
-    }
-
-    const output = {};
-    for (const [key, value] of Object.entries(section)) {
-      if (Array.isArray(value)) {
-        output[key] = value.map((entry) => String(entry || "").trim()).filter(Boolean);
-      } else if (typeof value === "string" && value.trim().length > 0) {
-        output[key] = [value.trim()];
-      }
-    }
-    return output;
-  }
-
   const normalized = {
     profileId,
-    specGovernance: {
-      canonicalRoot: typeof specGovernance.canonical_root === "string"
-        ? specGovernance.canonical_root.trim()
-        : ".nimi/spec",
-      domainChecks: isPlainObject(specGovernance.domain_checks)
-        ? specGovernance.domain_checks
-        : {},
-      validateCommands: normalizeCommandMap(specGovernance.validate_commands),
-      generateCommands: normalizeCommandMap(specGovernance.generate_commands),
-      singleSource: isPlainObject(specGovernance.single_source)
-        ? specGovernance.single_source
-        : {},
-      realmAlignment: isPlainObject(specGovernance.realm_alignment)
-        ? specGovernance.realm_alignment
-        : {},
-      legacyVocabulary: isPlainObject(specGovernance.legacy_vocabulary)
-        ? specGovernance.legacy_vocabulary
-        : {},
-    },
     aiGovernance: {
       agentsFreshness: {
         targets: Array.isArray(agentsFreshness.targets)

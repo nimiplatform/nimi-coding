@@ -6,7 +6,10 @@
 - Added exact-ID `authority query` and complete fail-closed bounded `authority context` over admitted compiler products.
 - Added byte-bounded compiler-output `authority diff` and explicit-relation `authority impact` with retained tombstones and fail-closed consumer/test dispositions.
 - Corrected public CLI pipe flushing so large JSON diagnostics and bounded semantic payloads complete before process exit.
-- Contracted managed projections to an exact three-file allowlist and removed wildcard AI authoring guidance.
+- Hard-cut the legacy reconstruction, taxonomy, table, generation-audit, placement, and spec-governance command plane; `authority check` is now the sole `.nimi/spec` conformance gate.
+- Contracted bootstrap/sync to one exact compact-guide projection plus managed instruction blocks; unrelated host files are ignored and exact deprecated projection paths fail closed.
+- Retained `validate-ai-governance` only as optional L3 repository governance, separate from authority admission and host task execution.
+- Hardened managed project paths with no-follow/shared-inode preflight, fatal UTF-8 host-envelope reads, strict managed-block topology, exact-span clear behavior, and effective-final `.gitignore` rule matching; failed preflight performs no managed mutation.
 
 ## 0.3.1
 

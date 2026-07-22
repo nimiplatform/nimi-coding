@@ -3,7 +3,7 @@ spec:
   id: nimicoding.authority-impact.v1
   owner: nimi-coding
   status: active
-product_claim: compare_admitted_compiler_outputs_and_fail_on_undisposed_declared_rule_obligations
+product_claim: compare_admitted_compiler_outputs_and_report_declared_review_obligations_without_claiming_sync_or_completion
 commands:
   diff: nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]
   impact: nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]
@@ -54,7 +54,8 @@ impact:
     consumer: union_of_before_and_after_declared_scope
     test: one_explicit_evidence_disposition_per_impacted_active_rule
   missing_disposition: AUTH_IMPACT_UNDISPOSED
-  complete: every_required_obligation_has_exact_addressed_evidence
+  complete: every_required_declared_obligation_has_exact_addressed_evidence
+  proof_boundary: does_not_prove_implementation_consumer_or_test_synchronization
   partial_success: false
   failure_report: may_list_complete_impacted_units_and_unresolved_obligations_with_ok_false
   byte_budget:
@@ -79,4 +80,5 @@ boundaries:
   durable_artifacts: none
   git_interpretation: none
   natural_language_contradiction_detection: not_claimed
-  storage_search_visualization_AI_execution: not_admitted
+  implementation_consumer_test_sync_proof: not_admitted
+  storage_search_embedding_visualization_AI_execution_Atlas: not_admitted

@@ -1,77 +1,76 @@
 # Nimi Coding
 
-Nimi Coding is an AI-native methodology and spec-governance package. It gives a repository a precise authority model, canonical spec construction contracts, managed governance projections, and deterministic validation.
+Nimi Coding provides a compact canonical-authority methodology, a formatter, private compiler primitives, and deterministic fail-closed gates. Projects author their own product meaning; Nimi Coding does not generate product semantics and does not control an AI host's planning, implementation, review, or task state.
 
-Nimi Coding deliberately does not control an AI host. Planning, delegation, implementation, review, and task state belong to the host's native capabilities.
-
-## Install and bootstrap
+## Install and start
 
 ```bash
 pnpm add -D @nimiplatform/nimi-coding
 pnpm exec nimicoding start --yes
 ```
 
-Bootstrap uses an exact deny-by-default allowlist and creates or updates only:
+`start` creates or maintains only:
 
-- `.nimi/config/spec-generation-inputs.yaml` — host-owned reconstruction inputs
-- `.nimi/contracts/domain-admission.schema.yaml` — host-profile domain admission override
-- `.nimi/methodology/authority-authoring.yaml` — compact normal-authoring guide
-- managed guidance blocks in `AGENTS.md` and `CLAUDE.md`
+- `.nimi/methodology/authority-authoring.yaml`, the compact AI-visible authoring guide;
+- managed instruction blocks in `AGENTS.md` and `CLAUDE.md`;
+- the ignored `.nimi/local/` root and its `.gitignore` entry.
 
-Canonical product authority remains under `.nimi/spec/**`. Local generation evidence belongs under `.nimi/local/state/spec-generation/**` and never becomes product authority.
+It does not create `.nimi/spec`, authority examples, product semantics, config/contracts projections, caches, migration state, or generation-audit skeletons.
 
-Canonical YAML files are closed `format` + non-empty `units` containers and may hold multiple explicit authority units. Unit identity is independent of file names, source order, moves, and regrouping. Canonical Markdown remains a single-unit profile.
+## Canonical workflow
 
-## Core commands
+The project authors only canonical `*.authority.yaml` or `*.authority.md` sources under `.nimi/spec/**`. Historical Markdown kernels, tables, guidance, registries, generated views, and evidence are not inferred or accepted there.
 
 ```bash
-# Canonical authority authoring and compiler kernel
-pnpm exec nimicoding authority fmt .nimi/spec/authority/example.authority.yaml
-pnpm exec nimicoding authority check .nimi/spec/authority --json
-pnpm exec nimicoding authority compile .nimi/spec/authority --json
-pnpm exec nimicoding authority query .nimi/spec/authority rule.checkout-session --max-bytes 32768 --json
-pnpm exec nimicoding authority context .nimi/spec/authority rule.checkout-session --max-units 8 --max-bytes 65536 --json
-pnpm exec nimicoding authority diff before/authority after/authority --max-bytes 262144 --json
-pnpm exec nimicoding authority impact before/authority after/authority --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
+# Format every changed source file.
+pnpm exec nimicoding authority fmt .nimi/spec/example.authority.yaml
 
-# Managed projection lifecycle
+# Admit the complete canonical root. This is the sole .nimi/spec conformance gate.
+pnpm exec nimicoding authority check .nimi/spec --json
+
+# Optional private compiler and read primitives, after check succeeds.
+pnpm exec nimicoding authority compile .nimi/spec --json
+pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
+pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
+pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
+pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
+```
+
+`context` returns the complete bounded closure of the root unit's declared outgoing `applies_to` and `supersedes` relations. It is an interpretation closure, not complete task context. Budget failure returns no partial packet.
+
+`impact` reports review obligations derived from declared relations. Disposition text does not prove that implementation, consumers, or tests are synchronized. Diff/impact budget failure returns no partial semantic payload.
+
+Canonical YAML is a closed `format` + non-empty `units` container. Canonical Markdown is a bounded single-unit profile. Unit identity is explicit and independent of file names, ordering, moves, and regrouping. `authority check` recursively rejects unsupported files, symlinks, non-canonical bytes, illegal grammar, identity, owner/lifecycle, and relation semantics.
+
+## Projection lifecycle
+
+```bash
 pnpm exec nimicoding start --yes
 pnpm exec nimicoding sync --check
 pnpm exec nimicoding sync --apply
 pnpm exec nimicoding doctor --json
 pnpm exec nimicoding clear --yes
-
-# Spec construction evidence
-pnpm exec nimicoding blueprint-audit --json
-pnpm exec nimicoding classify-spec-tree --root .nimi/spec --json
-pnpm exec nimicoding generate-spec-migration-plan --root .nimi/spec --json
-pnpm exec nimicoding generate-spec-derived-docs --profile nimi --scope spec-human-doc
-
-# Deterministic validation
-pnpm exec nimicoding validate-spec-tree -- .nimi/spec
-pnpm exec nimicoding validate-spec-audit -- .nimi/local/state/spec-generation/spec-generation-audit.yaml
-pnpm exec nimicoding validate-placement --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-table-family --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-projection-edges --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-guidance-bodies --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-domain-admission --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-tracked-output-admission --profile nimi --root .nimi/spec
-pnpm exec nimicoding validate-spec-governance --profile nimi --scope all
-pnpm exec nimicoding validate-ai-governance --profile nimi --scope all
 ```
 
-For `authority diff` and `authority impact`, `--max-bytes` bounds the compact semantic diff/impact payload, not the complete CLI report or compiler diagnostics. Overflow returns null semantic payloads rather than truncation.
+Projection ownership is exact: Nimi Coding owns only the compact guide path and its marked blocks. Unrelated host files under `.nimi/config`, `.nimi/contracts`, `.nimi/methodology`, or elsewhere are not inspected by sync. Exact deprecated package projection paths fail `sync --check` and are never automatically deleted.
 
-`classify-spec-tree` and `generate-spec-migration-plan` are non-mutating analysis commands. An emitted migration plan is local evidence, not an execution schedule.
+## Optional L3 repository governance
 
-## Authority model
+`validate-ai-governance` remains available for existing repository-level consumers. It performs deterministic repository checks and does not admit `.nimi/spec`, execute host tasks, or aggregate host workflow commands.
 
-1. The host's `.nimi/spec/**` is canonical product authority.
-2. Package methodology and contracts remain installed-package authority; only the three explicitly allowlisted downstream files above are projected.
-3. Generated views, audit evidence, and operational state are non-authoritative.
-4. Unknown placement or unresolved semantic ambiguity fails closed.
+```bash
+pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-freshness
+```
 
-See `methodology/spec-reconstruction.yaml`, `contracts/surface-taxonomy.schema.yaml`, and `contracts/placement-contract.schema.yaml` for the normative construction model.
+## Surface boundaries
+
+- **Public:** documented CLI commands and package documentation.
+- **Canonical/project-owned:** `.nimi/spec/**/*.authority.{yaml,md}`.
+- **Projected/AI-visible/package-owned:** `.nimi/methodology/authority-authoring.yaml` and marked instruction blocks.
+- **Local/non-authoritative:** `.nimi/local/**`.
+- **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
+
+SQLite, cache, incremental compilation, embeddings, search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

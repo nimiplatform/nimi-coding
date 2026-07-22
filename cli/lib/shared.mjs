@@ -1,22 +1,13 @@
 export {
-  buildBlueprintAuditPayload,
-  formatBlueprintAuditPayload,
-  writeBlueprintAuditArtifact,
-} from "./blueprint-audit.mjs";
-export {
   appendGitignoreEntries,
+  hasExactGitignoreRule,
+  ManagedPathError,
+  ManagedTextError,
   pathExists,
+  preflightManagedProjectPaths,
   readTextIfFile,
+  readUtf8FileFatal,
 } from "./fs-helpers.mjs";
-export {
-  mergeOrderedPaths,
-  parsePathRequirements,
-  parseSkillSection,
-  parseYamlText,
-  readTopLevelKeys,
-  readYamlList,
-  readYamlScalar,
-} from "./yaml-helpers.mjs";
 export {
   integrateEntrypoints,
   previewEntrypointIntegration,
@@ -29,12 +20,6 @@ export {
   removeManagedBootstrapFiles,
   writeMissingBootstrapFiles,
 } from "./bootstrap.mjs";
-export {
-  loadBlueprintReference,
-  loadSpecGenerationAuditContract,
-  loadSpecGenerationInputsConfig,
-  loadSpecGenerationInputsContract,
-} from "./contracts.mjs";
 export {
   formatDoctorResult,
   inspectDoctorState,

@@ -4,7 +4,7 @@ spec:
   owner: nimi-coding
   status: active
 product_claim: installed_package_deterministically_formats_checks_and_compiles_canonical_authority
-source_authority: downstream_project_.nimi/spec
+source_authority: downstream_project_.nimi/spec_containing_only_canonical_authority_profiles
 profiles:
   file_suffixes: [.authority.yaml, .authority.md]
   yaml:
@@ -92,5 +92,7 @@ diagnostics:
 runtime_authority:
   contracts: installed_package_only
   downstream_projection_cannot_change_compiler: true
+  historical_document_compatibility_or_inference: forbidden
+  sole_downstream_conformance_gate: authority_check_on_complete_canonical_root
 admitted_downstream_consumers: [exact_query, bounded_context, semantic_diff, declared_impact]
-not_admitted: [multi_unit_markdown, sqlite, incremental, search, visualization, ai_execution, qualification, nimi_cutover]
+not_admitted: [historical_format_reconstruction, profile_specific_validation, multi_unit_markdown, sqlite, cache, incremental, embedding, search, visualization, ai_execution, Atlas, qualification, final_cutover]

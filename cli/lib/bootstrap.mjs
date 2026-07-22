@@ -6,10 +6,12 @@ import {
   REQUIRED_LOCAL_DIRS,
 } from "../constants.mjs";
 import { createBootstrapSeedFileMap } from "../seeds/bootstrap.mjs";
-import { appendGitignoreEntries, pathExists, readTextIfFile } from "./fs-helpers.mjs";
+import { appendGitignoreEntries, hasExactGitignoreRule, pathExists, preflightManagedProjectPaths, readUtf8FileFatal } from "./fs-helpers.mjs";
 
 export async function previewBootstrapWrites(projectRoot) {
+  await preflightManagedProjectPaths(projectRoot);
   const missingFiles = [];
+  const driftedFiles = [];
   const missingDirs = [];
   const seedMap = await createBootstrapSeedFileMap();
 
@@ -21,29 +23,34 @@ export async function previewBootstrapWrites(projectRoot) {
     }
   }
 
-  for (const relativePath of seedMap.keys()) {
+  for (const [relativePath, content] of seedMap.entries()) {
     const absolutePath = path.join(projectRoot, relativePath);
     const info = await pathExists(absolutePath);
-    if (!info) {
-      missingFiles.push(relativePath);
-    }
+    if (!info) missingFiles.push(relativePath);
+    else if (info.isFile() && await readFile(absolutePath, "utf8") !== content) driftedFiles.push(relativePath);
   }
 
-  const gitignoreText = await readTextIfFile(path.join(projectRoot, ".gitignore"));
+  const gitignoreInfo = await pathExists(path.join(projectRoot, ".gitignore"));
+  const gitignoreText = gitignoreInfo?.isFile()
+    ? await readUtf8FileFatal(path.join(projectRoot, ".gitignore"), ".gitignore")
+    : null;
   const missingGitignoreEntries = gitignoreText === null
     ? LOCAL_GITIGNORE_ENTRIES.slice()
-    : LOCAL_GITIGNORE_ENTRIES.filter((entry) => !gitignoreText.includes(entry));
+    : LOCAL_GITIGNORE_ENTRIES.filter((entry) => !hasExactGitignoreRule(gitignoreText, entry));
 
   return {
     missingFiles,
+    driftedFiles,
     missingDirs,
     missingGitignoreEntries,
-    hasWork: missingFiles.length > 0 || missingDirs.length > 0 || missingGitignoreEntries.length > 0,
+    hasWork: missingFiles.length > 0 || driftedFiles.length > 0 || missingDirs.length > 0 || missingGitignoreEntries.length > 0,
   };
 }
 
 export async function writeMissingBootstrapFiles(projectRoot) {
+  await preflightManagedProjectPaths(projectRoot);
   const createdFiles = [];
+  const updatedFiles = [];
   const createdDirs = [];
   const seedMap = await createBootstrapSeedFileMap();
 
@@ -59,7 +66,11 @@ export async function writeMissingBootstrapFiles(projectRoot) {
   for (const [relativePath, content] of seedMap.entries()) {
     const absolutePath = path.join(projectRoot, relativePath);
     const info = await pathExists(absolutePath);
-    if (info) {
+    if (info?.isFile()) {
+      if (await readFile(absolutePath, "utf8") !== content) {
+        await writeFile(absolutePath, content, "utf8");
+        updatedFiles.push(relativePath);
+      }
       continue;
     }
 
@@ -75,22 +86,20 @@ export async function writeMissingBootstrapFiles(projectRoot) {
 
   return {
     createdFiles,
+    updatedFiles,
     createdDirs,
     gitignoreUpdated,
   };
 }
 
-const UNINSTALLABLE_BOOTSTRAP_PREFIXES = [
-  ".nimi/config/",
-  ".nimi/contracts/",
-  ".nimi/methodology/",
-];
+const UNINSTALLABLE_BOOTSTRAP_PREFIXES = [".nimi/methodology/"];
 
 function isUninstallableBootstrapPath(relativePath) {
   return UNINSTALLABLE_BOOTSTRAP_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
 }
 
 async function collectBootstrapRemovalState(projectRoot) {
+  await preflightManagedProjectPaths(projectRoot);
   const removableFiles = [];
   const preservedModifiedFiles = [];
   const seedMap = await createBootstrapSeedFileMap();
@@ -122,11 +131,7 @@ async function collectBootstrapRemovalState(projectRoot) {
 }
 
 async function removeEmptyBootstrapDirs(projectRoot) {
-  const removableDirs = [
-    ".nimi/config",
-    ".nimi/contracts",
-    ".nimi/methodology",
-  ];
+  const removableDirs = [".nimi/methodology"];
   const removedDirs = [];
 
   for (const relativeDir of removableDirs) {
@@ -153,6 +158,7 @@ export async function previewBootstrapRemoval(projectRoot) {
 }
 
 export async function removeManagedBootstrapFiles(projectRoot) {
+  await preflightManagedProjectPaths(projectRoot);
   const state = await collectBootstrapRemovalState(projectRoot);
 
   for (const relativePath of state.removableFiles) {

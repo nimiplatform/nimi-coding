@@ -6,7 +6,6 @@ import YAML from "yaml";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const POLICY_PATH = fileURLToPath(new URL("./seed-policy.yaml", import.meta.url));
-const SUPPORTED_OWNERSHIP = new Set(["package_canonical", "host_state_seed", "host_profile_override"]);
 let cachedPolicy = null;
 
 function portable(value) {
@@ -23,29 +22,27 @@ function admittedRelativePath(value, label) {
 async function loadPolicy() {
   if (cachedPolicy) return cachedPolicy;
   const parsed = YAML.parse(await readFile(POLICY_PATH, "utf8"));
-  if (parsed?.policy_id !== "nimicoding.seed-projection.v2" || !Array.isArray(parsed.projections) || parsed.projections.length === 0) {
-    throw new Error("seed policy must declare the v2 exact projection allowlist");
+  if (parsed?.policy_id !== "nimicoding.seed-projection.v3" || !Array.isArray(parsed.projections) || parsed.projections.length !== 1) {
+    throw new Error("seed policy must declare the v3 exact projection registry");
   }
-  const seenSource = new Set();
+
   const seenOutput = new Set();
   const projections = parsed.projections.map((entry) => {
     const sourceRelativePath = admittedRelativePath(entry?.source, "source");
     const outputRelativePath = admittedRelativePath(entry?.output, "output");
     if (!outputRelativePath.startsWith(".nimi/")) throw new Error(`seed policy output must stay below .nimi: ${outputRelativePath}`);
-    if (!SUPPORTED_OWNERSHIP.has(entry?.ownership)) throw new Error(`seed policy ownership is unsupported: ${entry?.ownership}`);
+    if (entry?.ownership !== "package_canonical") throw new Error(`seed policy ownership is unsupported: ${entry?.ownership}`);
     if (typeof entry?.downstream_consumer !== "string" || !entry.downstream_consumer.trim()) throw new Error(`seed policy entry requires a downstream consumer: ${sourceRelativePath}`);
-    if (seenSource.has(sourceRelativePath) || seenOutput.has(outputRelativePath)) throw new Error(`seed policy contains duplicate source/output: ${sourceRelativePath}`);
-    seenSource.add(sourceRelativePath);
+    if (seenOutput.has(outputRelativePath)) throw new Error(`seed policy contains duplicate output: ${outputRelativePath}`);
     seenOutput.add(outputRelativePath);
-    return {
-      sourceRelativePath,
-      outputRelativePath,
-      ownership: entry.ownership,
-      downstreamConsumer: entry.downstream_consumer,
-    };
+    return { sourceRelativePath, outputRelativePath, ownership: entry.ownership, downstreamConsumer: entry.downstream_consumer };
   });
-  projections.sort((left, right) => left.outputRelativePath < right.outputRelativePath ? -1 : left.outputRelativePath > right.outputRelativePath ? 1 : 0);
-  cachedPolicy = { policyId: parsed.policy_id, projections };
+
+  const deprecatedProjections = (parsed.deprecated_projections ?? []).map((entry) => admittedRelativePath(entry, "deprecated projection"));
+  if (new Set(deprecatedProjections).size !== deprecatedProjections.length || deprecatedProjections.some((entry) => seenOutput.has(entry))) {
+    throw new Error("seed policy deprecated projections must be unique and disjoint from current projections");
+  }
+  cachedPolicy = { policyId: parsed.policy_id, projections, deprecatedProjections: deprecatedProjections.sort() };
   return cachedPolicy;
 }
 
@@ -59,11 +56,7 @@ export async function getBootstrapSeedEntries() {
   for (const projection of policy.projections) {
     const sourceAbsolutePath = path.resolve(PACKAGE_ROOT, projection.sourceRelativePath);
     if (portable(path.relative(PACKAGE_ROOT, sourceAbsolutePath)) !== projection.sourceRelativePath) throw new Error(`seed source escapes package: ${projection.sourceRelativePath}`);
-    entries.push({
-      ...projection,
-      sourceAbsolutePath,
-      content: await readFile(sourceAbsolutePath, "utf8"),
-    });
+    entries.push({ ...projection, sourceAbsolutePath, content: await readFile(sourceAbsolutePath, "utf8") });
   }
   return entries;
 }

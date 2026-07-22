@@ -3,7 +3,7 @@ spec:
   id: nimicoding.authority-context.v1
   owner: nimi-coding
   status: active
-product_claim: exact_ID_returns_complete_bounded_traceable_relevant_context_or_fails
+product_claim: exact_ID_returns_one_unit_or_complete_bounded_declared_outgoing_interpretation_closure_or_fails
 source: admitted_package_private_AuthorityIR_and_SourceMap_only
 commands:
   query:
@@ -21,6 +21,7 @@ packet:
   schemas_included: false
   unrelated_units_outside_closure_included: false
   corpus_note: A legitimate closure may coincidentally include every corpus unit; no unit outside the closure is attached.
+  task_context: not_claimed
 closure:
   direction: outgoing_recursive
   relation_categories: [applies_to, supersedes]
@@ -45,4 +46,5 @@ boundaries:
   durable_artifacts: none
   exposes_AuthorityIR_as_package_export: false
   reads_projected_contracts: false
-  storage_search_diff_impact_AI_execution: not_admitted
+  complete_task_context: not_admitted
+  storage_search_embedding_visualization_AI_execution_Atlas: not_admitted

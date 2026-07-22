@@ -40,7 +40,16 @@ export async function runDoctor(args) {
     return 2;
   }
 
-  const result = await inspectDoctorState(process.cwd());
+  let result;
+  try {
+    result = await inspectDoctorState(process.cwd());
+  } catch (error) {
+    process.stderr.write(localize(
+      `nimicoding doctor refused: ${error.message}.`,
+      `nimicoding doctor 已拒绝：${error.message}。`,
+    ) + "\n");
+    return 2;
+  }
   if (parsed.options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } else {

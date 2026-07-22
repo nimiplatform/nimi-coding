@@ -1,8 +1,9 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { getBootstrapSeedEntries } from "../seeds/bootstrap.mjs";
-import { pathExists, readTextIfFile } from "./fs-helpers.mjs";
+import { getBootstrapSeedEntries, loadSeedPolicy } from "../seeds/bootstrap.mjs";
+import { inspectEntrypointIntegration, integrateEntrypoints } from "./entrypoints.mjs";
+import { pathExists, preflightManagedProjectPaths } from "./fs-helpers.mjs";
 
 export const SYNC_MODE = {
   DRY_RUN: "dry_run",
@@ -16,128 +17,90 @@ const STATUS = {
   UPDATED: "updated",
   WOULD_CREATE: "would_create",
   WOULD_UPDATE: "would_update",
-  DRIFTED_PRESERVED: "drifted_preserved",
   MISSING_PACKAGE_CANONICAL: "missing_package_canonical",
-  MISSING_HOST_STATE_SEED: "missing_host_state_seed",
   DRIFTED_PACKAGE_CANONICAL: "drifted_package_canonical",
-  UNEXPECTED_UNADMITTED_PATH: "unexpected_unadmitted_path",
+  MANAGED_BLOCK_DRIFT: "managed_block_drift",
+  DEPRECATED_PROJECTION_PATH: "deprecated_projection_path",
 };
 
-const EXACT_HOST_CONFIG_PATHS = new Set([
-  ".nimi/config/host-overlay.yaml",
-  ".nimi/config/spec-layout.yaml",
-  ".nimi/config/governance.yaml",
-]);
-const MANAGED_SURFACE_ROOTS = [".nimi/config", ".nimi/contracts", ".nimi/methodology"];
-
-const HOST_OWNED_SEED_OWNERSHIPS = new Set(["host_state_seed", "host_profile_override"]);
-
-async function collectSurfaceFiles(projectRoot, relativeRoot) {
-  const root = path.join(projectRoot, relativeRoot);
-  const info = await pathExists(root);
-  if (!info?.isDirectory()) return [];
-  async function walk(current, relative) {
-    const entries = await readdir(current, { withFileTypes: true });
-    const files = [];
-    for (const entry of entries) {
-      const absolute = path.join(current, entry.name);
-      const ref = path.posix.join(relative, entry.name);
-      if (entry.isDirectory()) files.push(...await walk(absolute, ref));
-      else files.push(ref);
-    }
-    return files;
-  }
-  return walk(root, relativeRoot);
-}
-
-async function unexpectedSurfaceResults(projectRoot, seedEntries) {
-  const admitted = new Set([...seedEntries.map((entry) => entry.outputRelativePath), ...EXACT_HOST_CONFIG_PATHS]);
-  const files = (await Promise.all(MANAGED_SURFACE_ROOTS.map((root) => collectSurfaceFiles(projectRoot, root)))).flat().sort();
-  return files.filter((ref) => !admitted.has(ref)).map((ref) => ({
-    outputRelativePath: ref,
-    ownership: "unadmitted",
-    status: STATUS.UNEXPECTED_UNADMITTED_PATH,
-    detail: ref === ".nimi/config/bootstrap.yaml"
-      ? "rejected legacy bootstrap path is outside the exact projection registry"
-      : "unexpected/unadmitted path is outside the exact projection registry and host config allowlist",
-  }));
-}
-
-async function evaluateSeedEntry(projectRoot, entry, mode) {
+async function inspectProjection(projectRoot, entry) {
   const absolutePath = path.join(projectRoot, entry.outputRelativePath);
   const info = await pathExists(absolutePath);
-  const fileExists = Boolean(info && info.isFile());
+  if (!info) return { ...entry, absolutePath, state: "missing" };
+  const actual = await readFile(absolutePath);
+  return { ...entry, absolutePath, state: actual.equals(Buffer.from(entry.content, "utf8")) ? "in_sync" : "drifted" };
+}
 
-  if (!fileExists) {
-    if (mode === SYNC_MODE.APPLY) {
-      await mkdir(path.dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, entry.content, "utf8");
-      return {
-        outputRelativePath: entry.outputRelativePath,
-        ownership: entry.ownership,
-        status: STATUS.CREATED,
-        detail: "missing host file was seeded from package source",
-      };
-    }
+function projectionResult(entry, mode, applied = false) {
+  if (entry.state === "in_sync") {
+    return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status: STATUS.IN_SYNC, detail: "projection matches package source byte-for-byte" };
+  }
+  if (applied) {
     return {
       outputRelativePath: entry.outputRelativePath,
       ownership: entry.ownership,
-      status: HOST_OWNED_SEED_OWNERSHIPS.has(entry.ownership)
-        ? STATUS.MISSING_HOST_STATE_SEED
-        : STATUS.MISSING_PACKAGE_CANONICAL,
-      detail: mode === SYNC_MODE.CHECK
-        ? "host file is missing"
-        : "host file is missing and would be seeded on --apply",
+      status: entry.state === "missing" ? STATUS.CREATED : STATUS.UPDATED,
+      detail: entry.state === "missing" ? "created exact package-owned projection" : "restored exact package-owned projection",
     };
   }
+  const status = entry.state === "missing"
+    ? mode === SYNC_MODE.CHECK ? STATUS.MISSING_PACKAGE_CANONICAL : STATUS.WOULD_CREATE
+    : mode === SYNC_MODE.CHECK ? STATUS.DRIFTED_PACKAGE_CANONICAL : STATUS.WOULD_UPDATE;
+  return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status, detail: entry.state === "missing" ? "exact package-owned projection is missing" : "projection diverges from package source" };
+}
 
-  const actual = await readTextIfFile(absolutePath);
-  if (actual === entry.content) {
-    return {
-      outputRelativePath: entry.outputRelativePath,
-      ownership: entry.ownership,
-      status: STATUS.IN_SYNC,
-      detail: "host file matches package source byte-for-byte",
-    };
+async function applyProjection(entry) {
+  await mkdir(path.dirname(entry.absolutePath), { recursive: true });
+  await writeFile(entry.absolutePath, entry.content, "utf8");
+}
+
+function managedBlockResult(state, mode, applied = false) {
+  if (!state.changed) {
+    return { outputRelativePath: `${state.relativePath}#nimicoding-managed-block`, ownership: "package_managed_block", status: STATUS.IN_SYNC, detail: "managed block matches package instructions" };
   }
-
-  if (HOST_OWNED_SEED_OWNERSHIPS.has(entry.ownership)) {
-    return {
-      outputRelativePath: entry.outputRelativePath,
-      ownership: entry.ownership,
-      status: STATUS.DRIFTED_PRESERVED,
-      detail: `${entry.ownership}: host owns canonical content; sync preserves host copy`,
-    };
-  }
-
-  if (mode === SYNC_MODE.APPLY) {
-    await writeFile(absolutePath, entry.content, "utf8");
-    return {
-      outputRelativePath: entry.outputRelativePath,
-      ownership: entry.ownership,
-      status: STATUS.UPDATED,
-      detail: "drifted package_canonical file rewritten to package source",
-    };
-  }
-
   return {
-    outputRelativePath: entry.outputRelativePath,
-    ownership: entry.ownership,
-    status: mode === SYNC_MODE.CHECK
-      ? STATUS.DRIFTED_PACKAGE_CANONICAL
-      : STATUS.WOULD_UPDATE,
-    detail: "host file diverges from package_canonical source",
+    outputRelativePath: `${state.relativePath}#nimicoding-managed-block`,
+    ownership: "package_managed_block",
+    status: applied ? STATUS.UPDATED : mode === SYNC_MODE.CHECK ? STATUS.MANAGED_BLOCK_DRIFT : STATUS.WOULD_UPDATE,
+    detail: "managed block is missing or drifted; host-owned text outside the block is not inspected",
   };
 }
 
-export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
-  const entries = await getBootstrapSeedEntries();
+async function inspectDeprecatedPaths(projectRoot) {
+  const policy = await loadSeedPolicy();
   const results = [];
-  for (const entry of entries) {
-    results.push(await evaluateSeedEntry(projectRoot, entry, mode));
+  for (const ref of policy.deprecatedProjections) {
+    if (await pathExists(path.join(projectRoot, ref))) {
+      results.push({
+        outputRelativePath: ref,
+        ownership: "deprecated_package_projection",
+        status: STATUS.DEPRECATED_PROJECTION_PATH,
+        detail: "deprecated package projection must be removed by the host; sync does not delete host files",
+      });
+    }
   }
-  results.push(...await unexpectedSurfaceResults(projectRoot, entries));
+  return results;
+}
 
+export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
+  await preflightManagedProjectPaths(projectRoot);
+  const seedEntries = await getBootstrapSeedEntries();
+  const projectionStates = [];
+  for (const entry of seedEntries) projectionStates.push(await inspectProjection(projectRoot, entry));
+  const blockStates = await inspectEntrypointIntegration(projectRoot);
+  const deprecatedResults = await inspectDeprecatedPaths(projectRoot);
+
+  const mayApply = mode === SYNC_MODE.APPLY && deprecatedResults.length === 0;
+  if (mayApply) {
+    for (const state of projectionStates) if (state.state !== "in_sync") await applyProjection(state);
+    if (blockStates.some((state) => state.changed)) await integrateEntrypoints(projectRoot);
+  }
+
+  const results = [
+    ...projectionStates.map((state) => projectionResult(state, mode, mayApply && state.state !== "in_sync")),
+    ...blockStates.map((state) => managedBlockResult(state, mode, mayApply && state.changed)),
+    ...deprecatedResults,
+  ];
   const summary = {
     total: results.length,
     in_sync: 0,
@@ -145,41 +108,24 @@ export async function runSeedSync(projectRoot, mode = SYNC_MODE.DRY_RUN) {
     updated: 0,
     would_create: 0,
     would_update: 0,
-    drifted_preserved: 0,
-    missing_host_state_seed: 0,
     missing_package_canonical: 0,
     drifted_package_canonical: 0,
-    unexpected_unadmitted_path: 0,
+    managed_block_drift: 0,
+    deprecated_projection_path: 0,
   };
+  for (const result of results) summary[result.status] = (summary[result.status] ?? 0) + 1;
 
-  for (const result of results) {
-    summary[result.status] = (summary[result.status] ?? 0) + 1;
-  }
-
-  // Re-derive dry-run status counters when no apply happened.
-  if (mode === SYNC_MODE.DRY_RUN) {
-    summary.would_create = results.filter((r) =>
-      r.status === STATUS.MISSING_HOST_STATE_SEED || r.status === STATUS.MISSING_PACKAGE_CANONICAL,
-    ).length;
-    summary.would_update = results.filter((r) => r.status === STATUS.WOULD_UPDATE).length;
-  }
-
-  const checkFailures = mode === SYNC_MODE.CHECK
-    ? results.filter((r) =>
-      r.status === STATUS.MISSING_PACKAGE_CANONICAL
-      || r.status === STATUS.MISSING_HOST_STATE_SEED
-      || r.status === STATUS.DRIFTED_PACKAGE_CANONICAL
-      || r.status === STATUS.UNEXPECTED_UNADMITTED_PATH,
-    )
-    : [];
-
-  return {
-    mode,
-    summary,
-    results,
-    ok: mode === SYNC_MODE.CHECK ? checkFailures.length === 0 : true,
-    checkFailures,
-  };
+  const checkFailureStatuses = new Set([
+    STATUS.MISSING_PACKAGE_CANONICAL,
+    STATUS.DRIFTED_PACKAGE_CANONICAL,
+    STATUS.MANAGED_BLOCK_DRIFT,
+    STATUS.DEPRECATED_PROJECTION_PATH,
+  ]);
+  const checkFailures = results.filter((result) =>
+    result.status === STATUS.DEPRECATED_PROJECTION_PATH
+    || (mode === SYNC_MODE.CHECK && checkFailureStatuses.has(result.status)),
+  );
+  return { mode, summary, results, ok: checkFailures.length === 0, checkFailures };
 }
 
 export const SYNC_RESULT_STATUS = STATUS;
