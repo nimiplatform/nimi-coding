@@ -33,6 +33,7 @@ pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-un
 pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
 pnpm exec nimicoding authority path .nimi/spec rule.checkout-session definition.session --traversal directed --relations applies_to,supersedes --max-hops 8 --max-units 64 --max-edges 128 --max-bytes 131072 --json
 pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direction outgoing --relations applies_to,supersedes --depth 3 --max-units 64 --max-edges 128 --max-bytes 262144 --json
+pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authority-verifiers.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 ```
@@ -44,6 +45,20 @@ pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nim
 `context` 返回 root unit 通过已声明 `applies_to` 与 `supersedes` 关系形成的完整有界 outgoing interpretation closure；它不是完整 task context。预算失败不返回 partial packet。
 
 `refs`、`path` 与 `subgraph` 共享紧凑的 `nimicoding.authority-graph/v1` graph product，包含 node metadata、canonical authored edges、精确 portable source locations、traversal/selection policy、counts 与显式 budgets。Relations 必须是只含 `applies_to` / `supersedes` 的显式非空 unique set。Directed path 只沿 authored direction；incidence path 可包含明确标记的 reverse topology step。Path 先选最少 hops，再做确定性 lexical tie-break。Unknown ID 或 hop/unit/edge/UTF-8 byte budget 不足时 fail closed 并返回 `graph: null`；两个合法但 disconnected 的 ID 返回 complete `found: false`。
+
+`audit` 在一个完整 admitted snapshot 上执行显式、project-owned verifier bindings。首个内置 detector 检查一个 exact premise rule 是否直接关联每个选定 definition，以及每个 target 是否拥有 binding 声明数量的独立 active-rule `applies_to` references。结果明确区分 governance-bound observation、finding 与 required-coverage gap；`--sarif` 将相同 truth 投影为 SARIF 2.1.0。Binding 不授权 package 从 premise prose 推断 predicate，budget 或 binding failure 也不会返回 partial/clean audit。
+
+```yaml
+format: nimicoding.authority-verifier-bindings/v1
+required_bindings: [checkout.session-reference]
+bindings:
+  - id: checkout.session-reference
+    detector: minimum-independent-incoming-reference/v1
+    premise: rule.checkout-session
+    targets: [definition.session]
+    minimum: 1
+    policy: blocking
+```
 
 `impact` 只报告由已声明关系导出的 review obligations；disposition 文本不能证明 implementation、consumer 或 test 已同步。Diff/impact 预算失败不返回 partial semantic payload。
 
@@ -75,4 +90,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-Graph navigation 不公开私有 AuthorityIR/SourceMap，不推断 prose relation，也不提供 owner/scope/lifecycle discovery filter。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+Graph navigation 与 deterministic audit 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

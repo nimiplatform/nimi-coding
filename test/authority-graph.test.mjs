@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -25,6 +25,7 @@ async function corpus() {
   roots.push(root);
   const target = path.join(root, "authority");
   await cp(fixture, target, { recursive: true });
+  await rename(path.join(target, "graph.authority.yaml"), path.join(target, "graph-多.authority.yaml"));
   return { root, target, file: path.join(target, "graph-多.authority.yaml") };
 }
 

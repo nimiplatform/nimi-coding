@@ -1,3 +1,5 @@
+import { VERSION } from "../constants.mjs";
+import { auditAuthorityPath } from "../lib/authority/audit.mjs";
 import { checkAuthorityPath, compileAuthorityPath } from "../lib/authority/compile.mjs";
 import { diffAuthorityPaths } from "../lib/authority/diff.mjs";
 import { discoverAuthorityPath } from "../lib/authority/discover.mjs";
@@ -5,6 +7,7 @@ import { AuthorityInputError, formatAuthorityFile } from "../lib/authority/forma
 import { pathAuthorityPath, refsAuthorityPath, subgraphAuthorityPath } from "../lib/authority/graph.mjs";
 import { impactAuthorityPaths } from "../lib/authority/impact.mjs";
 import { contextAuthorityPath, queryAuthorityPath } from "../lib/authority/query.mjs";
+import { authorityAuditResultToSarif } from "../lib/authority/sarif.mjs";
 
 const USAGE = [
   "nimicoding authority fmt <file> [--check] [--json]",
@@ -16,18 +19,19 @@ const USAGE = [
   "nimicoding authority refs <path> <id> --direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
   "nimicoding authority path <path> <from-id> <to-id> --traversal <directed|incidence> --relations <comma-separated-relation-types> --max-hops <positive-safe-integer> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
   "nimicoding authority subgraph <path> <id> --direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --depth <positive-safe-integer> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
+  "nimicoding authority audit <path> --bindings <file> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json|--sarif]",
   "nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]",
   "nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]",
 ].join("\n");
 
 function parseOptions(subcommand, args) {
-  const options = { json: false, check: false, path: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, direction: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxUnits: null, maxEdges: null, maxBytes: null };
+  const options = { json: false, sarif: false, check: false, path: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, direction: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxUnits: null, maxEdges: null, maxBytes: null };
   const graphCommands = ["refs", "path", "subgraph"];
   const integerOptions = {
     "--max-candidates": ["maxCandidates", ["discover"]],
-    "--max-units": ["maxUnits", ["context", ...graphCommands]],
-    "--max-edges": ["maxEdges", graphCommands],
-    "--max-bytes": ["maxBytes", ["discover", "query", "context", "diff", "impact", ...graphCommands]],
+    "--max-units": ["maxUnits", ["context", "audit", ...graphCommands]],
+    "--max-edges": ["maxEdges", ["audit", ...graphCommands]],
+    "--max-bytes": ["maxBytes", ["discover", "query", "context", "audit", "diff", "impact", ...graphCommands]],
     "--max-hops": ["maxHops", ["path"]],
     "--depth": ["depth", ["subgraph"]],
   };
@@ -40,8 +44,13 @@ function parseOptions(subcommand, args) {
       continue;
     }
     if (!terminated && arg.startsWith("--")) {
-      if (arg === "--json" && !options.json) options.json = true;
-      else if (arg === "--check" && subcommand === "fmt" && !options.check) options.check = true;
+      if (arg === "--json" && !options.json) {
+        if (options.sarif) return { ok: false, error: "authority audit requires --json and --sarif to be mutually exclusive" };
+        options.json = true;
+      } else if (arg === "--sarif" && subcommand === "audit" && !options.sarif) {
+        if (options.json) return { ok: false, error: "authority audit requires --json and --sarif to be mutually exclusive" };
+        options.sarif = true;
+      } else if (arg === "--check" && subcommand === "fmt" && !options.check) options.check = true;
       else if (Object.hasOwn(integerOptions, arg)) {
         const [key, admitted] = integerOptions[arg];
         if (!admitted.includes(subcommand) || options[key] !== null) return { ok: false, error: `authority ${subcommand} refused unknown or repeated option: ${arg}` };
@@ -73,6 +82,11 @@ function parseOptions(subcommand, args) {
         if (!value || value.startsWith("--")) return { ok: false, error: "authority impact requires --dispositions followed by one file" };
         options.dispositions = value;
         index += 1;
+      } else if (arg === "--bindings" && subcommand === "audit" && options.bindings === null) {
+        const value = args[index + 1];
+        if (!value || value.startsWith("--")) return { ok: false, error: "authority audit requires --bindings followed by one file" };
+        options.bindings = value;
+        index += 1;
       } else return { ok: false, error: `authority ${subcommand} refused unknown or repeated option: ${arg}` };
       continue;
     }
@@ -97,19 +111,48 @@ function parseOptions(subcommand, args) {
   if (subcommand === "discover" && options.maxCandidates === null) return { ok: false, error: "authority discover requires --max-candidates followed by a positive integer" };
   if (["context", ...graphCommands].includes(subcommand) && options.maxUnits === null) return { ok: false, error: `authority ${subcommand} requires --max-units followed by a positive integer` };
   if (graphCommands.includes(subcommand) && options.maxEdges === null) return { ok: false, error: `authority ${subcommand} requires --max-edges followed by a positive integer` };
-  if (["discover", "query", "context", "diff", "impact", ...graphCommands].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
+  if (["discover", "query", "context", "audit", "diff", "impact", ...graphCommands].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
   if (["refs", "subgraph"].includes(subcommand) && options.direction === null) return { ok: false, error: `authority ${subcommand} requires --direction` };
   if (subcommand === "path" && options.traversal === null) return { ok: false, error: "authority path requires --traversal" };
   if (graphCommands.includes(subcommand) && options.relations === null) return { ok: false, error: `authority ${subcommand} requires --relations` };
   if (subcommand === "path" && options.maxHops === null) return { ok: false, error: "authority path requires --max-hops followed by a positive integer" };
   if (subcommand === "subgraph" && options.depth === null) return { ok: false, error: "authority subgraph requires --depth followed by a positive integer" };
   if (subcommand === "impact" && options.dispositions === null) return { ok: false, error: "authority impact requires --dispositions followed by one file" };
+  if (subcommand === "audit" && options.bindings === null) return { ok: false, error: "authority audit requires --bindings followed by one file" };
+  if (subcommand === "audit" && options.maxUnits === null) return { ok: false, error: "authority audit requires --max-units followed by a positive integer" };
+  if (subcommand === "audit" && options.maxEdges === null) return { ok: false, error: "authority audit requires --max-edges followed by a positive integer" };
   return { ok: true, options };
 }
 
 function humanDiagnostic(diagnostic) {
   const { line, column } = diagnostic.range.start;
   return `${diagnostic.path}:${line}:${column} [${diagnostic.code}] ${diagnostic.reason}\n  repair: ${diagnostic.repair}`;
+}
+
+function humanAuditLocation(location) {
+  const { line, column } = location.range.start;
+  return `${location.file}:${line}:${column}`;
+}
+
+function formatAuditHuman(report) {
+  const audit = report.audit;
+  const operationStatus = audit?.operationStatus ?? report.semantic_status;
+  const policyStatus = audit?.policyStatus ?? "indeterminate";
+  const complete = audit?.complete ?? false;
+  const lines = [
+    `nimicoding authority audit: operation=${operationStatus}; policy=${policyStatus}; complete=${complete}`,
+    `files: ${report.summary.files}; units: ${report.summary.units}; diagnostics: ${report.summary.diagnostics}`,
+    `audit bytes: ${report.audit_bytes}`,
+  ];
+  if (audit) {
+    lines.push(`bindings: required=${audit.counts.bindings.required}; configured=${audit.counts.bindings.configured}; evaluated=${audit.counts.bindings.evaluated}`);
+    lines.push(`returned: observations=${audit.counts.returned.observations}; findings=${audit.counts.returned.findings}; gaps=${audit.counts.returned.gaps}`);
+    lines.push(`traversal: units=${audit.counts.traversal.units}; edges=${audit.counts.traversal.edges}`);
+    for (const finding of audit.findings) lines.push(`finding ${finding.code} ${finding.fingerprint} at ${humanAuditLocation(finding.primaryLocation)}: ${finding.message}`);
+    for (const gap of audit.gaps) lines.push(`gap ${gap.code} ${gap.fingerprint} at ${humanAuditLocation(gap.primaryLocation)}: ${gap.message}`);
+  } else lines.push("counts: unavailable (audit refused before evaluation)");
+  for (const diagnostic of report.diagnostics) lines.push(humanDiagnostic(diagnostic));
+  return `${lines.join("\n")}\n`;
 }
 
 function outputReport(report, json) {
@@ -146,6 +189,11 @@ function outputReport(report, json) {
   }
 }
 
+function outputAuditReport(report, output) {
+  if (output === "json") process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  else process.stdout.write(formatAuditHuman(report));
+}
+
 function makeReport(operation, result, semanticStatus, extra = {}) {
   return {
     operation,
@@ -171,7 +219,7 @@ export async function runAuthority(args) {
     process.stdout.write(`${USAGE}\n`);
     return 0;
   }
-  if (!["fmt", "check", "compile", "discover", "query", "context", "refs", "path", "subgraph", "diff", "impact"].includes(subcommand)) {
+  if (!["fmt", "check", "compile", "discover", "query", "context", "refs", "path", "subgraph", "audit", "diff", "impact"].includes(subcommand)) {
     process.stderr.write(`nimicoding authority refused unknown subcommand: ${subcommand}\n${USAGE}\n`);
     return 2;
   }
@@ -232,6 +280,23 @@ export async function runAuthority(args) {
       const report = makeReport(subcommand, result, result.ok ? "completed" : "refused", { graph_bytes: result.graphBytes, graph: result.graph, partial: result.partial });
       outputReport(report, parsed.options.json);
       return result.ok ? 0 : 1;
+    }
+    if (subcommand === "audit") {
+      const result = await auditAuthorityPath(parsed.options.path, parsed.options.bindings, {
+        maxUnits: parsed.options.maxUnits,
+        maxEdges: parsed.options.maxEdges,
+        maxBytes: parsed.options.maxBytes,
+      });
+      if (parsed.options.sarif) process.stdout.write(`${JSON.stringify(authorityAuditResultToSarif(result, { toolVersion: VERSION }), null, 2)}\n`);
+      else {
+        const report = makeReport("audit", result, result.audit?.operationStatus ?? "refused", {
+          audit_bytes: result.auditBytes,
+          audit: result.audit,
+          partial: result.partial,
+        });
+        outputAuditReport(report, parsed.options.json ? "json" : "human");
+      }
+      return result.audit?.operationStatus === "completed" && result.audit.policyStatus === "passed" ? 0 : 1;
     }
     if (subcommand === "diff") {
       const result = await diffAuthorityPaths(parsed.options.beforePath, parsed.options.afterPath, { maxBytes: parsed.options.maxBytes });

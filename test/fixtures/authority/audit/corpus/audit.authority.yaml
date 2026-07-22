@@ -1,0 +1,83 @@
+format: nimicoding.authority/v1
+units:
+  - id: definition.audit.alpha
+    kind: definition
+    owner: team.audit
+    lifecycle: active
+    title: Audit alpha
+    meaning: The first definition selected by verifier governance.
+    relations: []
+  - id: definition.audit.beta
+    kind: definition
+    owner: team.audit
+    lifecycle: active
+    title: Audit beta
+    meaning: The second definition selected by verifier governance.
+    relations: []
+  - id: definition.audit.unattached
+    kind: definition
+    owner: team.audit
+    lifecycle: active
+    title: Audit unattached target
+    meaning: A definition with independent references but no premise attachment.
+    relations: []
+  - id: rule.audit.registry
+    kind: rule
+    owner: team.audit
+    lifecycle: active
+    title: Audit registry premise
+    modality: must
+    scope:
+      - audit.registry
+    statement: The audit registry uses the exact attached alpha and beta definitions.
+    condition: When verifier governance evaluates the registry.
+    failure: Reject a registry evaluation that uses different definitions.
+    relations:
+      - type: applies_to
+        target: definition.audit.alpha
+      - type: applies_to
+        target: definition.audit.beta
+  - id: rule.audit.support-alpha
+    kind: rule
+    owner: team.audit
+    lifecycle: active
+    title: Alpha has an independent use
+    modality: must
+    scope:
+      - audit.alpha
+    statement: Alpha behavior uses the alpha definition and the unattached fixture definition.
+    condition: When alpha behavior is evaluated.
+    failure: Reject alpha behavior without its declared definitions.
+    relations:
+      - type: applies_to
+        target: definition.audit.alpha
+      - type: applies_to
+        target: definition.audit.unattached
+  - id: rule.audit.support-beta
+    kind: rule
+    owner: team.audit
+    lifecycle: active
+    title: Beta has an independent use
+    modality: must
+    scope:
+      - audit.beta
+    statement: Beta behavior uses the beta definition.
+    condition: When beta behavior is evaluated.
+    failure: Reject beta behavior without its declared definition.
+    relations:
+      - type: applies_to
+        target: definition.audit.beta
+  - id: rule.audit.support-unattached
+    kind: rule
+    owner: team.audit
+    lifecycle: active
+    title: Unattached fixture has an independent use
+    modality: must
+    scope:
+      - audit.unattached
+    statement: The unattached fixture behavior uses its definition.
+    condition: When unattached fixture behavior is evaluated.
+    failure: Reject unattached fixture behavior without its declared definition.
+    relations:
+      - type: applies_to
+        target: definition.audit.unattached

@@ -1,0 +1,4 @@
+format: nimicoding.authority-verifier-bindings/v1
+required_bindings:
+  - audit.registry-coverage
+bindings: []

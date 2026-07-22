@@ -1,0 +1,85 @@
+version: 1
+spec:
+  id: nimicoding.authority-audit.v1
+  owner: nimi-coding
+  status: active
+product_claim: complete_admitted_snapshot_and_explicit_project_binding_produce_deterministic_governance_bound_observations_findings_and_gaps
+runtime:
+  function: auditAuthorityPath(authorityPath_bindingsPath_budgets)
+  source: one_complete_package_private_AuthorityIR_SourceMap_and_one_closed_binding_document
+binding:
+  format: nimicoding.authority-verifier-bindings/v1
+  authority: package://@nimiplatform/nimi-coding/contracts/authority-verifier-bindings.schema.yaml
+  top_level_fields: [format, required_bindings, bindings]
+  required_bindings: non_empty_so_an_accidentally_emptied_CI_policy_is_refused
+  binding_fields: [id, detector, premise, targets, minimum, policy]
+  missing_required_binding: completed_gap
+  malformed_unknown_detector_or_invalid_authority_ref: refused_with_null_audit
+  tracked_project_governance: required_before_portable_blocking_adoption_but_not_inferred_or_verified_by_runtime
+detector:
+  id: minimum-independent-incoming-reference/v1
+  premise: exact_active_rule_selected_by_binding
+  targets: non_empty_unique_exact_active_definitions_selected_by_binding
+  attachment: premise_must_have_direct_applies_to_each_target
+  measurement: distinct_other_active_rule_sources_with_direct_applies_to_target
+  minimum: positive_safe_integer_from_binding
+  prose_ID_pattern_owner_scope_inference: forbidden
+  project_semantics: owner_admitted_governance_verifier_not_package_universal_invariant
+result:
+  format: nimicoding.authority-audit/v1
+  top_level_fields: [format, operationStatus, policyStatus, complete, observations, findings, gaps, counts, budgets]
+  operation_status: [completed]
+  policy_status:
+    blocked: at_least_one_blocking_finding
+    indeterminate: no_blocking_finding_and_at_least_one_required_binding_gap
+    passed: no_blocking_finding_or_gap
+  complete: false_only_when_required_binding_gap_exists
+  common_item_fields: [code, fingerprint, detector, binding, premise, basis, message, policy, authorityRefs, primaryLocation, relatedLocations, witness]
+  location_fields: [file, range, sourcePointer]
+  related_location_fields: [role, location]
+  basis:
+    governance_bound: configured_detector_observation_or_finding
+    required_coverage: required_binding_declaration_without_configured_detector_execution
+  required_binding_gap_fields:
+    detector: null
+    premise: null
+    basis: required_coverage
+    policy: required
+  observation: exactly_one_governance_bound_structural_observation_per_evaluated_binding
+  findings:
+    - premise_target_direct_attachment_missing
+    - minimum_independent_incoming_reference_not_met
+  finding_additional_fields: [target]
+  ordering:
+    observations: binding_ID
+    findings: [binding_ID, target_ID, code]
+    gaps: binding_ID
+  fingerprint:
+    algorithm: SHA-256_with_sha256_colon_prefix
+    inputs: [fingerprint_format, code, detector_when_present, binding_ID, premise_ID_when_present, target_ID_when_present, minimum_when_present]
+    excluded: [file, range, sourcePointer, policy, message, corpus_digest, run_identity]
+  counts:
+    fields: [bindings, returned, traversal]
+    binding_fields: [required, configured, evaluated]
+    returned_fields: [observations, findings, gaps]
+    traversal_fields: [units, edges]
+budgets:
+  required: [maxUnits, maxEdges, maxBytes]
+  values: positive_safe_integers
+  units_and_edges: complete_distinct_inspected_set_including_all_premise_outgoing_and_target_incoming_candidates_before_eligibility_filtering
+  bytes: UTF-8_bytes_of_compact_JSON.stringify_audit
+  overflow: AUTH_AUDIT_BUDGET_with_null_audit_and_partial_false
+outcomes:
+  completed: audit_present_even_when_blocked_or_gap_exists
+  refused: invalid_corpus_binding_authority_reference_or_budget_with_null_audit
+  partial: forbidden
+boundaries:
+  writes_authority: false
+  binding_is_canonical_product_authority: false
+  canonical_rule_ref_proves_predicate_equivalence: false
+  detector_plugin_DSL_exception_filter_or_dynamic_execution: forbidden
+  Git_tracking_CI_SARIF_UI_AI_host_or_remediation: not_owned_by_runtime
+  public_JS_exports: none
+summary:
+  result_unitCount: full_compiled_corpus_units
+  proof_traversal_counts: audit.counts.traversal

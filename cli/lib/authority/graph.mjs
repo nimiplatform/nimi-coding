@@ -72,7 +72,7 @@ function compareStepSequences(left, right) {
   return left.length - right.length;
 }
 
-function facade(compiled, basePath, relations) {
+export function buildAuthorityGraphSnapshot(compiled, basePath, relations) {
   const selectedTypes = new Set(relations);
   const byId = new Map();
   const outgoing = new Map();
@@ -197,7 +197,7 @@ async function admittedGraph(inputPath, ids, relations) {
   const compiled = await compileAuthorityPath(inputPath);
   if (!compiled.ok) return { result: failedResult(compiled) };
   const location = await inputLocation(inputPath);
-  const snapshot = facade(compiled, location.basePath, relations);
+  const snapshot = buildAuthorityGraphSnapshot(compiled, location.basePath, relations);
   for (const [role, id] of ids) {
     if (!snapshot.byId.has(id)) return { result: failedResult(compiled, [diagnostic(
       location,

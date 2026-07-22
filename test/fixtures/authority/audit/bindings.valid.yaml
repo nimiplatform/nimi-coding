@@ -1,0 +1,12 @@
+format: nimicoding.authority-verifier-bindings/v1
+required_bindings:
+  - audit.registry-coverage
+bindings:
+  - id: audit.registry-coverage
+    detector: minimum-independent-incoming-reference/v1
+    premise: rule.audit.registry
+    targets:
+      - definition.audit.alpha
+      - definition.audit.beta
+    minimum: 1
+    policy: blocking

@@ -36,6 +36,7 @@ pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-un
 pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
 pnpm exec nimicoding authority path .nimi/spec rule.checkout-session definition.session --traversal directed --relations applies_to,supersedes --max-hops 8 --max-units 64 --max-edges 128 --max-bytes 131072 --json
 pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direction outgoing --relations applies_to,supersedes --depth 3 --max-units 64 --max-edges 128 --max-bytes 262144 --json
+pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authority-verifiers.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 ```
@@ -45,6 +46,20 @@ pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nim
 `context` returns the complete bounded closure of the root unit's declared outgoing `applies_to` and `supersedes` relations. It is an interpretation closure, not complete task context. Budget failure returns no partial packet.
 
 `refs`, `path`, and `subgraph` return `nimicoding.authority-graph/v1`, a compact graph product containing node metadata, canonical authored edges, exact portable source locations, traversal/selection policy, counts, and explicit budgets. Relations are an explicit non-empty unique set limited to `applies_to` and `supersedes`. Directed paths follow authored direction; incidence paths may include clearly marked reverse topology steps. Paths are shortest-hop with a deterministic lexical tie-break. Unknown IDs and insufficient hop/unit/edge/UTF-8 byte budgets fail closed with `graph: null`; disconnected known IDs return a complete `found: false` path result.
+
+`audit` evaluates explicit project-owned verifier bindings against one complete admitted snapshot. The initial built-in detector checks that one exact premise rule directly attaches each selected definition and that every target has the declared minimum of independent active-rule `applies_to` references. Results distinguish governance-bound observations, findings, and required-coverage gaps; `--sarif` projects the same truth to SARIF 2.1.0. Bindings do not make the package infer a predicate from premise prose, and budget or binding failure never returns a partial or clean audit.
+
+```yaml
+format: nimicoding.authority-verifier-bindings/v1
+required_bindings: [checkout.session-reference]
+bindings:
+  - id: checkout.session-reference
+    detector: minimum-independent-incoming-reference/v1
+    premise: rule.checkout-session
+    targets: [definition.session]
+    minimum: 1
+    policy: blocking
+```
 
 `impact` reports review obligations derived from declared relations. Disposition text does not prove that implementation, consumers, or tests are synchronized. Diff/impact budget failure returns no partial semantic payload.
 
@@ -78,7 +93,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-Graph navigation does not export private AuthorityIR/SourceMap, infer prose relations, or provide owner/scope/lifecycle discovery filters. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+Graph navigation and deterministic audit do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

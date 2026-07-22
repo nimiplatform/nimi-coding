@@ -746,6 +746,44 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal(packedContext.code, 0);
   assert.equal(JSON.parse(packedContext.stdout).packet.units.length, 5);
 
+  const auditBinding = (minimum) => [
+    "format: nimicoding.authority-verifier-bindings/v1",
+    "required_bindings:",
+    "  - checkout.session-independent-reference",
+    "bindings:",
+    "  - id: checkout.session-independent-reference",
+    "    detector: minimum-independent-incoming-reference/v1",
+    "    premise: rule.checkout-session",
+    "    targets:",
+    "      - definition.session",
+    `    minimum: ${minimum}`,
+    "    policy: blocking",
+    "",
+  ].join("\n");
+  const auditBindings = path.join(consumer, "authority-verifiers.yaml");
+  await writeFile(auditBindings, auditBinding(1), "utf8");
+  const auditArgs = ["--bindings", auditBindings, "--max-units", "10", "--max-edges", "20", "--max-bytes", "65536"];
+  const packedAudit = await runExecutable(bin, ["authority", "audit", corpus, ...auditArgs, "--json"], consumer);
+  assert.equal(packedAudit.code, 0, packedAudit.stderr || packedAudit.stdout);
+  const packedAuditReport = JSON.parse(packedAudit.stdout);
+  assert.equal(packedAuditReport.audit.format, "nimicoding.authority-audit/v1");
+  assert.equal(packedAuditReport.audit.policyStatus, "passed");
+  assert.equal(packedAuditReport.audit.counts.bindings.evaluated, 1);
+  const packedAuditSarif = await runExecutable(bin, ["authority", "audit", corpus, ...auditArgs, "--sarif"], consumer);
+  assert.equal(packedAuditSarif.code, 0, packedAuditSarif.stderr || packedAuditSarif.stdout);
+  const packedSarifReport = JSON.parse(packedAuditSarif.stdout);
+  assert.equal(packedSarifReport.version, "2.1.0");
+  assert.equal(packedSarifReport.runs[0].invocations[0].properties.policyStatus, "passed");
+
+  await writeFile(auditBindings, auditBinding(2), "utf8");
+  const packedBlockedAudit = await runExecutable(bin, ["authority", "audit", corpus, ...auditArgs, "--json"], consumer);
+  assert.equal(packedBlockedAudit.code, 1);
+  const packedBlockedReport = JSON.parse(packedBlockedAudit.stdout);
+  assert.equal(packedBlockedReport.ok, true);
+  assert.equal(packedBlockedReport.audit.policyStatus, "blocked");
+  assert.equal(packedBlockedReport.audit.findings.length, 1);
+  assert.equal(packedBlockedReport.audit.findings[0].target, "definition.session");
+
   const graphArgs = ["--relations", "applies_to,supersedes", "--max-units", "20", "--max-edges", "20", "--max-bytes", "200000", "--json"];
   const packedRefs = await runExecutable(bin, ["authority", "refs", corpus, "definition.session", "--direction", "incoming", ...graphArgs], consumer);
   assert.equal(packedRefs.code, 0, packedRefs.stderr);

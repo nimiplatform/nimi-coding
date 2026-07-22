@@ -9,6 +9,7 @@ owned_surfaces:
   - private_compile_bounded_lexical_discovery_exact_query_and_declared_outgoing_context
   - semantic_diff_and_declared_review_impact
   - bounded_direct_references_exact_relation_paths_and_local_subgraphs
+  - project_bound_deterministic_authority_audit_and_SARIF_projection
   - optional_L3_repository_governance_not_authority_admission
 canonical_boundary:
   host_product_authority: .nimi/spec/**/*.authority.{yaml,md}
@@ -32,3 +33,4 @@ claims:
   context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
   impact: declared_review_obligation_not_sync_or_completion_proof
   graph: complete_bounded_explicit_relation_navigation_not_semantic_inference_or_raw_IR
+  audit: governance_bound_verifier_results_not_prose_predicate_inference_or_plugin_execution

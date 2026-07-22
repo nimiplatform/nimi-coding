@@ -1,0 +1,20 @@
+version: 1
+contract:
+  id: nimicoding.authority-verifier-bindings.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.authority-verifier-bindings/v1
+detector: minimum-independent-incoming-reference/v1
+identifier_pattern: '^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$'
+policies: [advisory, blocking]
+fields:
+  top: [format, required_bindings, bindings]
+  binding: [id, detector, premise, targets, minimum, policy]
+constraints:
+  required_bindings: non_empty_unique_exact_binding_IDs
+  binding_ID: unique_exact_dotted_lowercase_identifier
+  premise: exact_active_rule_ID
+  targets: non_empty_unique_exact_active_definition_IDs
+  minimum: positive_safe_integer
+  policy: advisory_or_blocking
+  extra_fields: forbidden
