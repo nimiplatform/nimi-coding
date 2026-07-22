@@ -697,6 +697,11 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal((await runExecutable(bin, ["authority", "fmt", path.join(corpus, "session.authority.yaml"), "--check"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "check", corpus, "--json"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "compile", corpus, "--json"], consumer)).code, 0);
+  const packedDiscovery = await runExecutable(bin, ["authority", "discover", corpus, "checkout session", "--max-candidates", "3", "--max-bytes", "65536", "--json"], consumer);
+  assert.equal(packedDiscovery.code, 0, packedDiscovery.stderr);
+  const packedDiscoveryReport = JSON.parse(packedDiscovery.stdout);
+  assert.equal(packedDiscoveryReport.discovery.format, "nimicoding.authority-discovery/v1");
+  assert.deepEqual(packedDiscoveryReport.discovery.candidates.map((candidate) => candidate.id), ["rule.checkout-session", "rule.checkout-session-v0", "rule.checkout-session-v00"]);
   const packedQuery = await runExecutable(bin, ["authority", "query", corpus, "rule.checkout-session", "--max-bytes", "65536", "--json"], consumer);
   assert.equal(packedQuery.code, 0);
   assert.deepEqual(JSON.parse(packedQuery.stdout).packet.units.map((unit) => unit.id), ["rule.checkout-session"]);

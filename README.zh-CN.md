@@ -27,6 +27,7 @@ pnpm exec nimicoding authority check .nimi/spec --json
 
 # check 成功后，可选使用私有 compiler/read primitives
 pnpm exec nimicoding authority compile .nimi/spec --json
+pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
@@ -34,6 +35,8 @@ pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nim
 ```
 
 `authority check` 是 `.nimi/spec` 唯一 conformance gate。它递归拒绝 unsupported file、symlink、非 canonical bytes，以及非法 grammar、identity、owner/lifecycle 与 relation。
+
+`discover` 在任务缺少 exact ID 时返回有界、确定的 lexical candidates。它不是 semantic search，不选择 authority、不附加 context、不声称完整召回，零匹配也不证明 authority 不存在。调用者必须依据 task 或 product authority 选择 ID，再显式调用 exact `query` 或 `context`。候选与 byte 边界均为显式边界；失败返回 `discovery: null`，不会为适配 byte budget 暗中减少候选。
 
 `context` 返回 root unit 通过已声明 `applies_to` 与 `supersedes` 关系形成的完整有界 outgoing interpretation closure；它不是完整 task context。预算失败不返回 partial packet。
 
@@ -67,4 +70,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-SQLite、cache、incremental compilation、embedding、search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

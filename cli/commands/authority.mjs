@@ -1,5 +1,6 @@
 import { checkAuthorityPath, compileAuthorityPath } from "../lib/authority/compile.mjs";
 import { diffAuthorityPaths } from "../lib/authority/diff.mjs";
+import { discoverAuthorityPath } from "../lib/authority/discover.mjs";
 import { AuthorityInputError, formatAuthorityFile } from "../lib/authority/format.mjs";
 import { impactAuthorityPaths } from "../lib/authority/impact.mjs";
 import { contextAuthorityPath, queryAuthorityPath } from "../lib/authority/query.mjs";
@@ -8,6 +9,7 @@ const USAGE = [
   "nimicoding authority fmt <file> [--check] [--json]",
   "nimicoding authority check <path> [--json]",
   "nimicoding authority compile <path> [--json]",
+  "nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> [--json]",
   "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
   "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
   "nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]",
@@ -15,7 +17,7 @@ const USAGE = [
 ].join("\n");
 
 function parseOptions(subcommand, args) {
-  const options = { json: false, check: false, path: null, id: null, beforePath: null, afterPath: null, dispositions: null, maxUnits: null, maxBytes: null };
+  const options = { json: false, check: false, path: null, id: null, query: null, beforePath: null, afterPath: null, dispositions: null, maxCandidates: null, maxUnits: null, maxBytes: null };
   const positionals = [];
   let terminated = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -27,13 +29,19 @@ function parseOptions(subcommand, args) {
     if (!terminated && arg.startsWith("--")) {
       if (arg === "--json" && !options.json) options.json = true;
       else if (arg === "--check" && subcommand === "fmt" && !options.check) options.check = true;
-      else if (arg === "--max-units" && subcommand === "context" && options.maxUnits === null) {
+      else if (arg === "--max-candidates" && subcommand === "discover" && options.maxCandidates === null) {
+        const value = args[index + 1];
+        if (!value || !/^[1-9][0-9]*$/.test(value)) return { ok: false, error: "authority discover requires --max-candidates followed by a positive integer" };
+        options.maxCandidates = Number(value);
+        if (!Number.isSafeInteger(options.maxCandidates)) return { ok: false, error: "authority discover max-candidates exceeds the supported integer range" };
+        index += 1;
+      } else if (arg === "--max-units" && subcommand === "context" && options.maxUnits === null) {
         const value = args[index + 1];
         if (!value || !/^[1-9][0-9]*$/.test(value)) return { ok: false, error: "authority context requires --max-units followed by a positive integer" };
         options.maxUnits = Number(value);
         if (!Number.isSafeInteger(options.maxUnits)) return { ok: false, error: "authority context max-units exceeds the supported integer range" };
         index += 1;
-      } else if (arg === "--max-bytes" && ["query", "context", "diff", "impact"].includes(subcommand) && options.maxBytes === null) {
+      } else if (arg === "--max-bytes" && ["discover", "query", "context", "diff", "impact"].includes(subcommand) && options.maxBytes === null) {
         const value = args[index + 1];
         if (!value || !/^[1-9][0-9]*$/.test(value)) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
         options.maxBytes = Number(value);
@@ -49,16 +57,25 @@ function parseOptions(subcommand, args) {
     }
     positionals.push(arg);
   }
-  const paired = ["query", "context", "diff", "impact"].includes(subcommand);
+  const paired = ["discover", "query", "context", "diff", "impact"].includes(subcommand);
   const expected = paired ? 2 : 1;
   if (positionals.length !== expected) {
-    const requirement = ["diff", "impact"].includes(subcommand) ? "one before path and one after path" : expected === 1 ? "one path" : "one path and one exact ID";
+    const requirement = subcommand === "discover"
+      ? "one path and one query"
+      : ["diff", "impact"].includes(subcommand)
+        ? "one before path and one after path"
+        : expected === 1 ? "one path" : "one path and one exact ID";
     return { ok: false, error: `authority ${subcommand} requires exactly ${requirement}` };
   }
   if (["diff", "impact"].includes(subcommand)) [options.beforePath, options.afterPath] = positionals;
   else [options.path, options.id] = positionals;
+  if (subcommand === "discover") {
+    options.query = options.id;
+    options.id = null;
+  }
+  if (subcommand === "discover" && options.maxCandidates === null) return { ok: false, error: "authority discover requires --max-candidates followed by a positive integer" };
   if (subcommand === "context" && options.maxUnits === null) return { ok: false, error: "authority context requires --max-units followed by a positive integer" };
-  if (["query", "context", "diff", "impact"].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
+  if (["discover", "query", "context", "diff", "impact"].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
   if (subcommand === "impact" && options.dispositions === null) return { ok: false, error: "authority impact requires --dispositions followed by one file" };
   return { ok: true, options };
 }
@@ -75,11 +92,13 @@ function outputReport(report, json) {
     process.stdout.write(`files: ${report.summary.files}; units: ${report.summary.units}; diagnostics: ${report.summary.diagnostics}\n`);
     if (report.changed !== undefined) process.stdout.write(`changed: ${report.changed}\n`);
     if (report.packet_bytes !== undefined) process.stdout.write(`packet bytes: ${report.packet_bytes}\n`);
+    if (report.discovery_bytes !== undefined) process.stdout.write(`discovery bytes: ${report.discovery_bytes}\n`);
     if (report.payload_bytes !== undefined) process.stdout.write(`semantic payload bytes: ${report.payload_bytes}\n`);
     if (report.packet) {
       process.stdout.write(`root: ${report.packet.root}\n`);
       process.stdout.write(`context units: ${report.packet.units.map((unit) => unit.id).join(", ")}\n`);
     }
+    if (report.discovery) process.stdout.write(`candidates: ${report.discovery.candidates.map((candidate) => candidate.id).join(", ")}\n`);
     if (report.diff) process.stdout.write(`semantic changes: ${report.diff.summary.changes}\n`);
     if (report.impact) process.stdout.write(`impacted units: ${report.impact.impactedUnits.map((unit) => unit.id).join(", ")}\n`);
     for (const diagnostic of report.diagnostics) process.stdout.write(`${humanDiagnostic(diagnostic)}\n`);
@@ -111,7 +130,7 @@ export async function runAuthority(args) {
     process.stdout.write(`${USAGE}\n`);
     return 0;
   }
-  if (!["fmt", "check", "compile", "query", "context", "diff", "impact"].includes(subcommand)) {
+  if (!["fmt", "check", "compile", "discover", "query", "context", "diff", "impact"].includes(subcommand)) {
     process.stderr.write(`nimicoding authority refused unknown subcommand: ${subcommand}\n${USAGE}\n`);
     return 2;
   }
@@ -136,6 +155,12 @@ export async function runAuthority(args) {
     if (subcommand === "compile") {
       const result = await compileAuthorityPath(parsed.options.path);
       const report = makeReport("compile", result, result.ok ? "valid" : "invalid");
+      outputReport(report, parsed.options.json);
+      return result.ok ? 0 : 1;
+    }
+    if (subcommand === "discover") {
+      const result = await discoverAuthorityPath(parsed.options.path, parsed.options.query, { maxCandidates: parsed.options.maxCandidates, maxBytes: parsed.options.maxBytes });
+      const report = makeReport("discover", result, result.ok ? "valid" : "invalid", { discovery_bytes: result.discoveryBytes, discovery: result.discovery });
       outputReport(report, parsed.options.json);
       return result.ok ? 0 : 1;
     }

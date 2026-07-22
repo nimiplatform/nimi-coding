@@ -12,6 +12,7 @@ required_workflow:
   - Read each diagnostic's primary range, related ranges, reason, and repair category; choose values only from task or product authority.
   - Compile only after check succeeds.
 context_workflow:
+  - If a task has only a business description, use nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> --json for bounded lexical candidates, then explicitly choose an ID through task or product authority and use exact query/context; discovery is not semantic search, selection, complete recall, or proof of absence.
   - Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one exact admitted unit.
   - Use nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json only when the task needs the complete declared outgoing interpretation closure over applies_to and supersedes; this is not complete task context.
   - Both commands require an explicit UTF-8 packet byte budget; context additionally requires a unit budget. AUTH_CONTEXT_BUDGET returns no partial packet.

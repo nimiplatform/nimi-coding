@@ -1,0 +1,53 @@
+version: 1
+spec:
+  id: nimicoding.authority-discovery.v1
+  owner: nimi-coding
+  status: active
+product_claim: bounded_deterministic_lexical_candidates_for_tasks_without_exact_authority_ID
+source: complete_admitted_package_private_AuthorityIR_and_SourceMap_only
+command:
+  syntax: nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> [--json]
+normalization:
+  order: [split_camelCase_boundary, Unicode_NFKC, deterministic_lowercase, Unicode_Letter_or_Number_runs, deduplicate]
+  excluded: [language_stopwords, stemming, synonyms, translation, fuzzy_typo_matching, model_inference]
+fields:
+  included: [id, title, owner, scope, meaning, statement, condition, failure, reason]
+  excluded: [relations, container_or_file_name, SourceMap_path_text, derived_context, implementation_evidence, test_evidence]
+  match: normalized_token_equality
+  admission: at_least_one_query_term_matches
+ranking:
+  public_score: none
+  tuple:
+    - distinct_query_terms_in_id_or_title_descending
+    - distinct_query_terms_in_meaning_or_statement_descending
+    - distinct_query_terms_in_all_fields_descending
+    - distinct_query_terms_in_scope_descending
+    - distinct_query_terms_in_failure_descending
+    - distinct_query_terms_in_condition_descending
+    - distinct_query_terms_in_reason_descending
+    - distinct_query_terms_in_owner_descending
+    - unit_ID_lexical_ascending
+payload:
+  format: nimicoding.authority-discovery/v1
+  fields: [query, matchedTotal, returned, truncated, candidates]
+  candidate_fields: [rank, id, kind, lifecycle, owner, title, scope, matchedTerms, matches, primaryIdLocation]
+  match_fields: [field, terms, exact_portable_SourceMap_location]
+  excluded: [complete_AuthorityIR_unit, relation_closure, inferred_explanation, selected_authority, implementation_or_test_information]
+bounds:
+  max_candidates: explicit_positive_safe_integer_top_k
+  truncation: explicitly_reports_matchedTotal_returned_and_truncated_without_claiming_complete_recall
+  max_bytes: explicit_positive_safe_integer_over_UTF-8_bytes_of_compact_JSON.stringify_discovery_payload
+  byte_overflow: AUTH_DISCOVERY_BUDGET_with_null_discovery_and_no_silent_candidate_reduction
+fail_closed:
+  invalid_query: AUTH_DISCOVERY_QUERY_INVALID
+  zero_match: AUTH_DISCOVERY_NOT_FOUND_does_not_prove_authority_absence
+  invalid_corpus: preserve_complete_compiler_diagnostics
+  partial_discovery: forbidden
+boundaries:
+  read_only: true
+  writes_or_durable_artifacts: none
+  reads_projected_contracts: false
+  exports_private_AuthorityIR: false
+  semantic_search_or_final_selection: not_claimed
+  relation_expansion_or_context: forbidden
+  caller_next_step: explicit_existing_query_or_context

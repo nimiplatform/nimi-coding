@@ -30,11 +30,14 @@ pnpm exec nimicoding authority check .nimi/spec --json
 
 # Optional private compiler and read primitives, after check succeeds.
 pnpm exec nimicoding authority compile .nimi/spec --json
+pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 ```
+
+`discover` returns bounded deterministic lexical candidates when a task lacks an exact ID. It does not perform semantic search, select authority, attach context, claim complete recall, or prove absence on zero matches. After choosing an ID from task or product authority, call exact `query` or `context`. Candidate and byte bounds are explicit; failures return `discovery: null` and never silently remove candidates to fit bytes.
 
 `context` returns the complete bounded closure of the root unit's declared outgoing `applies_to` and `supersedes` relations. It is an interpretation closure, not complete task context. Budget failure returns no partial packet.
 
@@ -70,7 +73,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-SQLite, cache, incremental compilation, embeddings, search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

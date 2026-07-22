@@ -7,7 +7,8 @@ methodology:
       - compact_canonical_authority_authoring_methodology
       - exact_package_projection_and_managed_instruction_blocks
       - canonical_authority_formatter_and_conformance_gate
-      - private_compiler_and_exact_query
+      - bounded_deterministic_lexical_candidate_discovery
+      - private_compiler_bounded_lexical_discovery_and_exact_query
       - complete_declared_outgoing_interpretation_closure
       - semantic_diff_and_declared_review_obligations
       - optional_L3_repository_governance_checks
@@ -19,13 +20,14 @@ methodology:
       - agent_delegation_or_AI_execution
       - implementation_or_review_completion
       - host_workflow_commands
-      - storage_search_visualization_or_Atlas
+      - storage_semantic_search_visualization_or_Atlas
   authority_order:
     - host_canonical_authority_under_.nimi/spec
     - projected_compact_authoring_methodology
     - package_internal_compiler_contracts
     - local_non_authority_evidence
   boundaries:
+    discovery: bounded_lexical_candidates_not_semantic_search_selection_complete_recall_or_absence_proof
     context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
     impact: declared_review_obligations_not_implementation_consumer_or_test_sync_proof
     authority_admission: nimicoding_authority_check_on_complete_canonical_root
