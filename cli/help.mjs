@@ -6,7 +6,7 @@ export function helpText() {
     "nimicoding authority fmt <file> [--check] [--json]",
     "nimicoding authority check <path> [--json]",
     "nimicoding authority compile <path> [--json]",
-    "nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> [--json]",
+    "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
     "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
     "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
     "nimicoding authority refs <path> <id> --direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",

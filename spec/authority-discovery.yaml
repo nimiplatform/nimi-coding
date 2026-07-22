@@ -1,20 +1,33 @@
-version: 1
+version: 2
 spec:
-  id: nimicoding.authority-discovery.v1
+  id: nimicoding.authority-discovery.v2
   owner: nimi-coding
   status: active
-product_claim: bounded_deterministic_lexical_candidates_for_tasks_without_exact_authority_ID
-source: complete_admitted_package_private_AuthorityIR_and_SourceMap_only
+product_claim: bounded_deterministic_filtered_lexical_candidates_with_field_snippets_and_optional_direct_authored_relation_preview_for_callers_without_an_exact_authority_ID
+source: complete_admitted_package_private_AuthorityIR_SourceMap_and_existing_M1_direct_authored_graph_only
 command:
-  syntax: nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> [--json]
+  syntax: nimicoding authority discover <path> <query> [--kind <rule|definition>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]
+  continuity: same_purpose_specific_discover_command_with_a_hard_cut_payload_from_v1_to_v2
 normalization:
-  order: [split_camelCase_boundary, Unicode_NFKC, deterministic_lowercase, Unicode_Letter_or_Number_runs, deduplicate]
+  order: [Unicode_NFKC, split_camelCase_boundary, deterministic_lowercase, Unicode_Letter_or_Number_runs, deduplicate_query_terms]
+  snippet_stream: preserve_normalized_field_term_occurrence_order
   excluded: [language_stopwords, stemming, synonyms, translation, fuzzy_typo_matching, model_inference]
+filters:
+  cardinality: each_filter_is_optional_singular_and_exact
+  kind: exact_rule_or_definition
+  owner: exact_known_unit_owner_equality
+  scope: exact_known_membership_in_the_unit_scope_sequence
+  lifecycle: exact_active_or_removed
+  execution: filter_the_complete_admitted_unit_universe_before_lexical_candidate_matching
+  effect_on_rank: none_other_than_removing_ineligible_units
+  unknown_owner_or_scope: AUTH_DISCOVERY_FILTER_UNKNOWN_with_null_discovery
+  structurally_impossible_or_empty_intersection: AUTH_DISCOVERY_FILTER_CONTRADICTORY_with_null_discovery
+  zero_lexical_match_in_nonempty_eligible_universe: AUTH_DISCOVERY_NOT_FOUND_without_absence_proof
 fields:
   included: [id, title, owner, scope, meaning, statement, condition, failure, reason]
   excluded: [relations, container_or_file_name, SourceMap_path_text, derived_context, implementation_evidence, test_evidence]
   match: normalized_token_equality
-  admission: at_least_one_query_term_matches
+  admission: at_least_one_query_term_matches_one_included_field_of_an_eligible_unit
 ranking:
   public_score: none
   tuple:
@@ -27,19 +40,72 @@ ranking:
     - distinct_query_terms_in_reason_descending
     - distinct_query_terms_in_owner_descending
     - unit_ID_lexical_ascending
+  invariants:
+    - filters_only_remove_ineligible_units_and_do_not_change_the_tuple
+    - max_snippet_terms_never_changes_matching_or_rank
+    - preview_configuration_and_graph_content_never_change_matching_or_rank
+snippets:
+  per_match: one_deterministic_window_over_the_exact_matched_field_value
+  normalization: NFKC_camel_boundary_lowercase_Unicode_Letter_Number_terms
+  terms: at_most_max_snippet_terms_normalized_terms_in_original_field_occurrence_order
+  width: minimum_of_maxSnippetTerms_and_complete_normalized_field_term_count
+  selection: maximize_distinct_matched_query_terms_then_choose_the_earliest_window_start
+  anchor: first_matched_term_in_the_window_with_exact_normalized_term_and_zero_based_fieldTermIndex_in_the_complete_normalized_field_term_stream
+  matched_terms: query_terms_present_in_the_returned_window_in_normalized_query_order
+  omissions: exact_nonnegative_omittedBeforeTerms_and_omittedAfterTerms_counts
+  complete: true_only_when_no_normalized_field_term_is_omitted
+  traceability: exact_portable_field_SourceMap_location_on_every_match
+  boundary: snippet_is_lexical_evidence_not_source_prose_context_or_an_explanation
+preview:
+  option_group: preview_direction_relations_and_max_edges_must_be_all_present_or_all_absent
+  source: existing_M1_direct_authored_graph_over_the_same_complete_compiler_snapshot
+  seeds: returned_candidate_IDs_only
+  direction: incoming_outgoing_or_both_incidence_selection_around_each_seed
+  relations: explicit_nonempty_unique_subset_of_applies_to_and_supersedes
+  topology: direct_authored_edges_only_no_transitive_expansion_or_context_assembly
+  authored_direction: preserved_even_when_selected_by_incoming_or_both_incidence
+  composition: deterministic_unique_nodes_and_unique_authored_edges_across_all_returned_candidates
+  nodes: every_returned_candidate_root_plus_every_selected_edge_endpoint_once
+  traceability: reuse_M1_node_primary_locations_and_authored_edge_SourceMap_locations
+  ordering:
+    roots: candidate_rank_order
+    relations_and_nodes: lexical_ascending
+    edges: source_then_type_then_target_lexical_ascending
+  completeness: every_matching_direct_edge_for_every_returned_candidate_or_refuse_the_whole_discovery
+  rank_effect: none
 payload:
-  format: nimicoding.authority-discovery/v1
-  fields: [query, matchedTotal, returned, truncated, candidates]
+  format: nimicoding.authority-discovery/v2
+  fields: [format, query, filters, counts, truncated, absenceProven, candidates, relationPreview, budgets]
+  query_fields: [text, normalizedTerms]
+  filter_fields: [kind, owner, scope, lifecycle]
+  absent_filters: explicit_null
+  count_fields: [corpusUnits, eligibleUnits, matchedUnits, returnedCandidates]
+  absenceProven: always_false
   candidate_fields: [rank, id, kind, lifecycle, owner, title, scope, matchedTerms, matches, primaryIdLocation]
-  match_fields: [field, terms, exact_portable_SourceMap_location]
-  excluded: [complete_AuthorityIR_unit, relation_closure, inferred_explanation, selected_authority, implementation_or_test_information]
+  match_fields: [field, terms, location, snippet]
+  snippet_fields: [normalization, terms, anchor, matchedTerms, omittedBeforeTerms, omittedAfterTerms, complete]
+  relationPreview: null_when_the_preview_option_group_is_absent
+  preview_fields: [direction, relations, complete, roots, nodes, edges, counts, budgets, policy]
+  preview_count_fields: [roots, units, edges]
+  preview_budget_fields: [maxEdges]
+  preview_policy_fields: [selection, edgeRepresentation, duplicateNodesAndEdges, rankingEffect]
+  budget_fields: [maxCandidates, maxSnippetTerms, maxEdges, maxBytes]
+  absent_preview_maxEdges: explicit_null
+  excluded: [complete_AuthorityIR_unit, inferred_relation, transitive_relation_closure, inferred_explanation, selected_authority, implementation_or_test_information]
 bounds:
-  max_candidates: explicit_positive_safe_integer_top_k
-  truncation: explicitly_reports_matchedTotal_returned_and_truncated_without_claiming_complete_recall
-  max_bytes: explicit_positive_safe_integer_over_UTF-8_bytes_of_compact_JSON.stringify_discovery_payload
-  byte_overflow: AUTH_DISCOVERY_BUDGET_with_null_discovery_and_no_silent_candidate_reduction
+  max_candidates: required_explicit_positive_safe_integer_top_k_after_filters
+  max_snippet_terms: required_explicit_positive_safe_integer_per_match_window
+  max_edges: required_explicit_positive_safe_integer_only_when_preview_is_requested
+  truncation: explicitly_reports_matchedUnits_returnedCandidates_and_truncated_without_claiming_complete_recall
+  max_bytes: required_explicit_positive_safe_integer_over_UTF-8_bytes_of_compact_JSON.stringify_complete_v2_discovery_payload
+  edge_overflow: AUTH_DISCOVERY_PREVIEW_BUDGET_with_null_discovery_and_no_partial_preview_or_silent_edge_reduction
+  byte_overflow: AUTH_DISCOVERY_BUDGET_with_null_discovery_and_no_silent_candidate_snippet_or_preview_reduction
 fail_closed:
+  CLI_usage_error: missing_repeated_unknown_or_syntactically_invalid_CLI_argument_exits_2_without_a_discovery_product
+  runtime_guard: package_private_runtime_invalid_filter_or_preview_options_return_the_corresponding_diagnostic_with_null_discovery
   invalid_query: AUTH_DISCOVERY_QUERY_INVALID
+  invalid_filter: [AUTH_DISCOVERY_FILTER_INVALID, AUTH_DISCOVERY_FILTER_UNKNOWN, AUTH_DISCOVERY_FILTER_CONTRADICTORY]
+  invalid_preview_configuration: AUTH_DISCOVERY_PREVIEW_INVALID
   zero_match: AUTH_DISCOVERY_NOT_FOUND_does_not_prove_authority_absence
   invalid_corpus: preserve_complete_compiler_diagnostics
   partial_discovery: forbidden
@@ -48,6 +114,6 @@ boundaries:
   writes_or_durable_artifacts: none
   reads_projected_contracts: false
   exports_private_AuthorityIR: false
-  semantic_search_or_final_selection: not_claimed
-  relation_expansion_or_context: forbidden
-  caller_next_step: explicit_existing_query_or_context
+  semantic_search_model_reranking_or_final_selection: not_claimed
+  relation_preview: bounded_direct_authored_topology_not_context_or_semantic_inference
+  caller_next_step: caller_owned_candidate_selection_followed_by_explicit_exact_query_or_context

@@ -30,7 +30,7 @@ pnpm exec nimicoding authority check .nimi/spec --json
 
 # Optional private compiler and read primitives, after check succeeds.
 pnpm exec nimicoding authority compile .nimi/spec --json
-pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
+pnpm exec nimicoding authority discover .nimi/spec "checkout session" --kind rule --owner team.checkout --scope api.checkout --lifecycle active --max-candidates 10 --max-snippet-terms 24 --preview-direction both --relations applies_to,supersedes --max-edges 128 --max-bytes 131072 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
 pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
@@ -43,7 +43,9 @@ pnpm exec nimicoding authority review . --base origin/main --bindings .nimi/conf
 pnpm exec nimicoding authority evidence . --bindings .nimi/config/authority-evidence.yaml --max-units 1024 --max-bindings 16 --max-locators 128 --max-edges 128 --max-input-bytes 2097152 --max-bytes 1048576 --json
 ```
 
-`discover` returns bounded deterministic lexical candidates when a task lacks an exact ID. It does not perform semantic search, select authority, attach context, claim complete recall, or prove absence on zero matches. After choosing an ID from task or product authority, call exact `query` or `context`. Candidate and byte bounds are explicit; failures return `discovery: null` and never silently remove candidates to fit bytes.
+`discover` returns the hard-cut `nimicoding.authority-discovery/v2` product when a task lacks an exact ID. Optional singular `--kind`, `--owner`, `--scope`, and `--lifecycle` filters use exact admitted fields and only remove ineligible units; unknown values, structurally contradictory combinations, and empty exact intersections fail closed instead of becoming an empty-success result. The ranking tuple remains unchanged; v2 normalizes with NFKC before camel-boundary splitting so NFKC-equivalent inputs share lexical terms. Every field match carries its exact portable SourceMap plus a deterministic window of at most `--max-snippet-terms` normalized ordered lexical terms, including the anchor term/index, matched terms, exact omissions, and completeness.
+
+The optional relation-preview group is all-or-none: `--preview-direction`, `--relations`, and `--max-edges` must appear together. It reuses M1 direct authored graph semantics and SourceMap locations around the returned candidates, preserves authored edge direction, and returns complete deterministic unique nodes/edges without changing candidate rank. An insufficient edge or UTF-8 byte budget refuses the whole discovery with `discovery: null`; it never publishes a partial preview or silently drops candidates, snippets, or edges to fit. Discovery is not semantic search, authority selection, context assembly, or an absence proof: `absenceProven` is always false, including zero-match refusal. After the caller chooses an ID from task or product authority, call exact `query` or `context`.
 
 `context` returns the complete bounded closure of the root unit's declared outgoing `applies_to` and `supersedes` relations. It is an interpretation closure, not complete task context. Budget failure returns no partial packet.
 
@@ -120,7 +122,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-Graph navigation, deterministic audit, Git-aware review, and current-worktree evidence do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. Review is not a Git/PR workflow; evidence is not a shell, test, plugin, or conformance runner. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+Filtered discovery and relation preview, graph navigation, deterministic audit, Git-aware review, and current-worktree evidence do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. Discovery snippets are lexical windows, not source-prose context; preview is direct authored topology, not context assembly. Review is not a Git/PR workflow; evidence is not a shell, test, plugin, or conformance runner. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

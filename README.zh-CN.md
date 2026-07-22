@@ -27,7 +27,7 @@ pnpm exec nimicoding authority check .nimi/spec --json
 
 # check 成功后，可选使用私有 compiler/read primitives
 pnpm exec nimicoding authority compile .nimi/spec --json
-pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
+pnpm exec nimicoding authority discover .nimi/spec "checkout session" --kind rule --owner team.checkout --scope api.checkout --lifecycle active --max-candidates 10 --max-snippet-terms 24 --preview-direction both --relations applies_to,supersedes --max-edges 128 --max-bytes 131072 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
 pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
@@ -42,7 +42,9 @@ pnpm exec nimicoding authority evidence . --bindings .nimi/config/authority-evid
 
 `authority check` 是 `.nimi/spec` 唯一 conformance gate。它递归拒绝 unsupported file、symlink、非 canonical bytes，以及非法 grammar、identity、owner/lifecycle 与 relation。
 
-`discover` 在任务缺少 exact ID 时返回有界、确定的 lexical candidates。它不是 semantic search，不选择 authority、不附加 context、不声称完整召回，零匹配也不证明 authority 不存在。调用者必须依据 task 或 product authority 选择 ID，再显式调用 exact `query` 或 `context`。候选与 byte 边界均为显式边界；失败返回 `discovery: null`，不会为适配 byte budget 暗中减少候选。
+`discover` 在任务缺少 exact ID 时返回 hard-cut `nimicoding.authority-discovery/v2` 产品。可选的 singular `--kind`、`--owner`、`--scope` 与 `--lifecycle` 只按 admitted field 做 exact filter、移除不合格 unit；unknown value、结构矛盾的组合与空 exact intersection 都 fail closed，不会被包装成 empty success。Ranking tuple 保持不变；v2 在 camel-boundary split 前执行 NFKC，使 NFKC-equivalent inputs 得到相同 lexical terms。每个 field match 都携带 exact portable SourceMap，以及最多 `--max-snippet-terms` 个 normalized ordered lexical terms 的确定性 window；window 明确 anchor term/index、matched terms、精确前后 omissions 与 completeness。
+
+可选 relation-preview group 必须 all-or-none：`--preview-direction`、`--relations` 与 `--max-edges` 三者必须同时出现。它对 returned candidates 复用 M1 direct authored graph 语义与 SourceMap locations，保留 authored edge direction，返回完整且确定去重的 nodes/edges，并且永不改变 candidate rank。Edge 或 UTF-8 byte budget 不足会拒绝整次 discovery 并返回 `discovery: null`；不会返回 partial preview，也不会为适配预算暗中删除 candidate、snippet 或 edge。Discovery 不是 semantic search、authority selection、context assembly 或 absence proof；包括零匹配拒绝在内，`absenceProven` 始终为 false。调用者从 task 或 product authority 选择 ID 后，再显式调用 exact `query` 或 `context`。
 
 `context` 返回 root unit 通过已声明 `applies_to` 与 `supersedes` 关系形成的完整有界 outgoing interpretation closure；它不是完整 task context。预算失败不返回 partial packet。
 
@@ -117,4 +119,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-Graph navigation、deterministic audit、Git-aware review 与 current-worktree evidence 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。Review 不是 Git/PR workflow；evidence 不是 shell、test、plugin 或 conformance runner。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+Filtered discovery/relation preview、graph navigation、deterministic audit、Git-aware review 与 current-worktree evidence 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。Discovery snippet 是 lexical window，不是 source-prose context；preview 是 direct authored topology，不是 context assembly。Review 不是 Git/PR workflow；evidence 不是 shell、test、plugin 或 conformance runner。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

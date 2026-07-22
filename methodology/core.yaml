@@ -1,4 +1,4 @@
-version: 4
+version: 5
 methodology:
   id: nimi-coding
   mission: Preserve explicit project-authored canonical authority through deterministic formatting, compilation, and fail-closed gates.
@@ -7,8 +7,8 @@ methodology:
       - compact_canonical_authority_authoring_methodology
       - exact_package_projection_and_managed_instruction_blocks
       - canonical_authority_formatter_and_conformance_gate
-      - bounded_deterministic_lexical_candidate_discovery
-      - private_compiler_bounded_lexical_discovery_and_exact_query
+      - bounded_deterministic_exact_filtered_lexical_candidate_discovery_with_SourceMapped_field_snippets_and_optional_direct_authored_relation_preview
+      - private_compiler_filtered_lexical_discovery_and_exact_query
       - complete_declared_outgoing_interpretation_closure
       - bounded_explicit_relation_graph_navigation
       - project_bound_deterministic_authority_audit_and_SARIF_projection
@@ -29,7 +29,7 @@ methodology:
     - package_internal_compiler_contracts
     - local_non_authority_evidence
   boundaries:
-    discovery: bounded_lexical_candidates_not_semantic_search_selection_complete_recall_or_absence_proof
+    discovery: bounded_exact_filtered_lexical_candidates_with_SourceMapped_field_snippets_and_optional_M1_direct_authored_relation_preview_not_semantic_search_selection_context_complete_recall_or_absence_proof
     context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
     graph: bounded_explicit_relation_navigation_not_semantic_inference_or_raw_IR
     audit: explicit_project_verifier_bindings_not_prose_inference_plugin_execution_or_product_authority

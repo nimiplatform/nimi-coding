@@ -1,15 +1,15 @@
-version: 1
+version: 2
 id: nimicoding.authority-authoring
 purpose: Author explicit project authority under .nimi/spec without inference.
 authority_boundary:
   canonical_root: .nimi/spec
   sources: ["*.authority.yaml", "*.authority.md"]
   rule: The project owns product meaning; nimicoding formats, validates, and derives read-only results.
-  AI_inputs: [this_guide, task_authority, exact_query_or_bounded_context, diagnostics]
+  AI_inputs: [this_guide, task_authority, bounded_discovery, exact_query_or_bounded_context, diagnostics]
   do_not_read: [complete_authority_corpus, contracts, package_internal_specs]
 
 daily_workflow:
-  - If no exact ID is known, run nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> --json. It returns bounded lexical candidates, not semantic search, selection, complete recall, or proof of absence.
+  - If no exact ID is known, run nimicoding authority discover <path> <query> --max-candidates 10 --max-snippet-terms 24 --max-bytes 131072 --json. Filters are exact; pass --preview-direction, --relations, and --max-edges together. It neither selects nor proves absence.
   - Select an ID only from task or product authority. Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one unit, or context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json for its declared outgoing applies_to/supersedes closure. Context is not complete task context.
   - Modify only project-owned canonical authority. Choose every product value before writing; never infer an ID, owner, scope, condition, failure, or relation.
   - Run nimicoding authority fmt <changed-file> for each changed file.

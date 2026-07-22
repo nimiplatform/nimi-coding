@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Added strict single-unit Canonical Markdown and closed multi-unit Canonical YAML `authority fmt`, `authority check`, and package-private deterministic compilation with SourceMaps.
-- Added read-only fail-closed `authority discover` for bounded deterministic lexical candidates over admitted private compiler products; it does not select authority or perform semantic search.
+- Hard-cut read-only fail-closed `authority discover` to `nimicoding.authority-discovery/v2`, adding singular exact kind/owner/scope/lifecycle filters, SourceMapped deterministic normalized-term snippets, and an optional complete M1 direct-authored relation preview; the ranking tuple is unchanged, and the product never selects authority, supplies context, or performs semantic search.
 - Added exact-ID `authority query` and complete fail-closed bounded `authority context` over admitted compiler products.
 - Added byte-bounded compiler-output `authority diff` and explicit-relation `authority impact` with retained tombstones and fail-closed consumer/test dispositions.
 - Added fail-closed `authority refs`, `authority path`, and `authority subgraph` over explicit admitted relations with portable SourceMap locations, deterministic traversal, and hop/unit/edge/UTF-8 byte budgets.

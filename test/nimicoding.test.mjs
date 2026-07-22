@@ -102,6 +102,16 @@ test("public CLI exposes one authority plane and removed commands are unavailabl
   assert.equal(help.code, 0);
   assert.match(help.stdout, /optional L3 repository governance/);
   assert.doesNotMatch(help.stdout, /spec reconstruction|profile-specific validation/i);
+  const discoveryUsage = help.stdout.split("\n").find((line) => line.includes("nimicoding authority discover"));
+  assert(discoveryUsage);
+  assert.match(discoveryUsage, /--max-snippet-terms <positive-(?:safe-)?integer>/);
+  assert.match(discoveryUsage, /--kind/);
+  assert.match(discoveryUsage, /--owner/);
+  assert.match(discoveryUsage, /--scope/);
+  assert.match(discoveryUsage, /--lifecycle/);
+  assert.match(discoveryUsage, /--preview-direction/);
+  assert.match(discoveryUsage, /--relations/);
+  assert.match(discoveryUsage, /--max-edges/);
 
   const retained = help.stdout
     .split("\n")

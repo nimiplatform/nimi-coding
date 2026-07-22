@@ -1,4 +1,4 @@
-version: 6
+version: 7
 product:
   package_name: "@nimiplatform/nimi-coding"
   mission: canonical_authority_methodology_formatter_compiler_primitives_and_deterministic_gates
@@ -6,7 +6,7 @@ owned_surfaces:
   - compact_authority_authoring_methodology
   - exact_authority_guide_projection_and_managed_instruction_blocks
   - canonical_authority_format_and_complete_root_check
-  - private_compile_bounded_lexical_discovery_exact_query_and_declared_outgoing_context
+  - private_compile_bounded_filtered_lexical_discovery_with_field_snippets_optional_direct_authored_relation_preview_exact_query_and_declared_outgoing_context
   - semantic_diff_and_declared_review_impact
   - bounded_direct_references_exact_relation_paths_and_local_subgraphs
   - project_bound_deterministic_authority_audit_and_SARIF_projection
@@ -31,7 +31,7 @@ out_of_scope:
   - host_workflow_command_aggregation
   - sqlite_cache_incremental_embedding_semantic_search_visualization_AI_execution_or_Atlas
 claims:
-  discovery: bounded_deterministic_lexical_candidates_not_semantic_search_selection_or_absence_proof
+  discovery: bounded_deterministic_exact_filtered_lexical_candidates_with_SourceMapped_field_snippets_and_optional_M1_direct_authored_relation_preview_not_semantic_search_selection_context_or_absence_proof
   context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
   impact: declared_review_obligation_not_sync_or_completion_proof
   graph: complete_bounded_explicit_relation_navigation_not_semantic_inference_or_raw_IR

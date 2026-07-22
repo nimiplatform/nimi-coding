@@ -459,7 +459,8 @@ test("the compact projected guide preserves required decisions and provides an e
   const guide = YAML.parse(guideText);
   assert.equal(guide.authority_boundary.canonical_root, ".nimi/spec");
   assert.deepEqual(guide.authority_boundary.sources, ["*.authority.yaml", "*.authority.md"]);
-  assert.match(guide.daily_workflow[0], /authority discover <path> <query>/);
+  assert.match(guide.daily_workflow[0], /^If no exact ID is known, run nimicoding authority discover <path> <query> --max-candidates 10 --max-snippet-terms 24 --max-bytes 131072 --json\./);
+  assert(guide.authority_boundary.AI_inputs.includes("bounded_discovery"));
   assert.match(guide.daily_workflow[1], /authority query <path> <id>/);
   assert.match(guide.daily_workflow[1], /context <path> <id> --max-units/);
   assert.match(guide.daily_workflow.join(" "), /fmt <changed-file>.*check <complete-path>.*compile.*diff and impact/);
@@ -734,11 +735,22 @@ test("packed package runs the full chain and projections cannot alter compiler s
   assert.equal((await runExecutable(bin, ["authority", "fmt", path.join(corpus, "session.authority.yaml"), "--check"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "check", corpus, "--json"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "compile", corpus, "--json"], consumer)).code, 0);
-  const packedDiscovery = await runExecutable(bin, ["authority", "discover", corpus, "checkout session", "--max-candidates", "3", "--max-bytes", "65536", "--json"], consumer);
+  const packedDiscovery = await runExecutable(bin, [
+    "authority", "discover", corpus, "checkout session",
+    "--kind", "rule", "--owner", "team.checkout", "--scope", "api.checkout", "--lifecycle", "active",
+    "--max-candidates", "3", "--max-snippet-terms", "5",
+    "--preview-direction", "outgoing", "--relations", "applies_to,supersedes", "--max-edges", "3",
+    "--max-bytes", "65536", "--json",
+  ], consumer);
   assert.equal(packedDiscovery.code, 0, packedDiscovery.stderr);
   const packedDiscoveryReport = JSON.parse(packedDiscovery.stdout);
-  assert.equal(packedDiscoveryReport.discovery.format, "nimicoding.authority-discovery/v1");
-  assert.deepEqual(packedDiscoveryReport.discovery.candidates.map((candidate) => candidate.id), ["rule.checkout-session", "rule.checkout-session-v0", "rule.checkout-session-v00"]);
+  assert.equal(packedDiscoveryReport.discovery.format, "nimicoding.authority-discovery/v2");
+  assert.deepEqual(packedDiscoveryReport.discovery.filters, { kind: "rule", owner: "team.checkout", scope: "api.checkout", lifecycle: "active" });
+  assert.deepEqual(packedDiscoveryReport.discovery.candidates.map((candidate) => candidate.id), ["rule.checkout-session", "rule.checkout-no-anonymous"]);
+  assert(packedDiscoveryReport.discovery.candidates.every((candidate) => candidate.matches.every((match) => match.snippet.terms.length <= 5)));
+  assert.deepEqual(packedDiscoveryReport.discovery.relationPreview.roots, ["rule.checkout-session", "rule.checkout-no-anonymous"]);
+  assert.equal(packedDiscoveryReport.discovery.relationPreview.counts.edges, 3);
+  assert.equal(packedDiscoveryReport.discovery.relationPreview.complete, true);
   const packedQuery = await runExecutable(bin, ["authority", "query", corpus, "rule.checkout-session", "--max-bytes", "65536", "--json"], consumer);
   assert.equal(packedQuery.code, 0);
   assert.deepEqual(JSON.parse(packedQuery.stdout).packet.units.map((unit) => unit.id), ["rule.checkout-session"]);

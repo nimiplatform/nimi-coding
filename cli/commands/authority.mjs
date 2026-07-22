@@ -15,7 +15,7 @@ const USAGE = [
   "nimicoding authority fmt <file> [--check] [--json]",
   "nimicoding authority check <path> [--json]",
   "nimicoding authority compile <path> [--json]",
-  "nimicoding authority discover <path> <query> --max-candidates <positive-integer> --max-bytes <positive-integer> [--json]",
+  "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
   "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
   "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
   "nimicoding authority refs <path> <id> --direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
@@ -28,15 +28,18 @@ const USAGE = [
   "nimicoding authority evidence <repository-path> --bindings <tracked-.nimi/config-path> [--probe-results <.nimi/local-path>] --max-units <positive-safe-integer> --max-bindings <positive-safe-integer> --max-locators <positive-safe-integer> --max-edges <positive-safe-integer> --max-input-bytes <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
 ].join("\n");
 
+const AUTHORITY_IDENTIFIER = /^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$/;
+
 function parseOptions(subcommand, args) {
-  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, probeResults: null, direction: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxUnits: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
+  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, probeResults: null, kind: null, owner: null, scope: null, lifecycle: null, direction: null, previewDirection: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxSnippetTerms: null, maxUnits: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
   const graphCommands = ["refs", "path", "subgraph"];
   const integerOptions = {
     "--max-candidates": ["maxCandidates", ["discover"]],
+    "--max-snippet-terms": ["maxSnippetTerms", ["discover"]],
     "--max-units": ["maxUnits", ["context", "audit", "review", "evidence", ...graphCommands]],
     "--max-bindings": ["maxBindings", ["evidence"]],
     "--max-locators": ["maxLocators", ["evidence"]],
-    "--max-edges": ["maxEdges", ["audit", "review", "evidence", ...graphCommands]],
+    "--max-edges": ["maxEdges", ["audit", "review", "evidence", "discover", ...graphCommands]],
     "--max-input-bytes": ["maxInputBytes", ["evidence"]],
     "--max-bytes": ["maxBytes", ["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", ...graphCommands]],
     "--max-hops": ["maxHops", ["path"]],
@@ -71,12 +74,32 @@ function parseOptions(subcommand, args) {
         if (!["incoming", "outgoing", "both"].includes(value)) return { ok: false, error: `authority ${subcommand} requires --direction incoming, outgoing, or both` };
         options.direction = value;
         index += 1;
+      } else if (arg === "--preview-direction" && subcommand === "discover" && options.previewDirection === null) {
+        const value = args[index + 1];
+        if (!["incoming", "outgoing", "both"].includes(value)) return { ok: false, error: "authority discover requires --preview-direction incoming, outgoing, or both" };
+        options.previewDirection = value;
+        index += 1;
+      } else if (arg === "--kind" && subcommand === "discover" && options.kind === null) {
+        const value = args[index + 1];
+        if (!["definition", "rule"].includes(value)) return { ok: false, error: "authority discover requires --kind definition or rule" };
+        options.kind = value;
+        index += 1;
+      } else if (["--owner", "--scope"].includes(arg) && subcommand === "discover" && options[arg.slice(2)] === null) {
+        const value = args[index + 1];
+        if (!value || !AUTHORITY_IDENTIFIER.test(value)) return { ok: false, error: `authority discover requires ${arg} followed by one exact dotted lowercase identifier` };
+        options[arg.slice(2)] = value;
+        index += 1;
+      } else if (arg === "--lifecycle" && subcommand === "discover" && options.lifecycle === null) {
+        const value = args[index + 1];
+        if (!["active", "removed"].includes(value)) return { ok: false, error: "authority discover requires --lifecycle active or removed" };
+        options.lifecycle = value;
+        index += 1;
       } else if (arg === "--traversal" && subcommand === "path" && options.traversal === null) {
         const value = args[index + 1];
         if (!["directed", "incidence"].includes(value)) return { ok: false, error: "authority path requires --traversal directed or incidence" };
         options.traversal = value;
         index += 1;
-      } else if (arg === "--relations" && graphCommands.includes(subcommand) && options.relations === null) {
+      } else if (arg === "--relations" && [...graphCommands, "discover"].includes(subcommand) && options.relations === null) {
         const value = args[index + 1];
         const relations = value?.split(",") ?? [];
         if (relations.length === 0 || relations.some((entry) => entry.length === 0 || !["applies_to", "supersedes"].includes(entry)) || new Set(relations).size !== relations.length) {
@@ -127,6 +150,12 @@ function parseOptions(subcommand, args) {
     options.id = null;
   }
   if (subcommand === "discover" && options.maxCandidates === null) return { ok: false, error: "authority discover requires --max-candidates followed by a positive integer" };
+  if (subcommand === "discover" && options.maxSnippetTerms === null) return { ok: false, error: "authority discover requires --max-snippet-terms followed by a positive integer" };
+  if (subcommand === "discover") {
+    const previewOptions = [options.previewDirection, options.relations, options.maxEdges];
+    const provided = previewOptions.filter((value) => value !== null).length;
+    if (provided !== 0 && provided !== previewOptions.length) return { ok: false, error: "authority discover requires --preview-direction, --relations, and --max-edges together" };
+  }
   if (["context", ...graphCommands].includes(subcommand) && options.maxUnits === null) return { ok: false, error: `authority ${subcommand} requires --max-units followed by a positive integer` };
   if (graphCommands.includes(subcommand) && options.maxEdges === null) return { ok: false, error: `authority ${subcommand} requires --max-edges followed by a positive integer` };
   if (["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", ...graphCommands].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
@@ -198,7 +227,11 @@ function outputReport(report, json) {
       process.stdout.write(`root: ${report.packet.root}\n`);
       process.stdout.write(`context units: ${report.packet.units.map((unit) => unit.id).join(", ")}\n`);
     }
-    if (report.discovery) process.stdout.write(`candidates: ${report.discovery.candidates.map((candidate) => candidate.id).join(", ")}\n`);
+    if (report.discovery) {
+      process.stdout.write(`eligible units: ${report.discovery.counts.eligibleUnits}; lexical matches: ${report.discovery.counts.matchedUnits}; returned candidates: ${report.discovery.counts.returnedCandidates}\n`);
+      process.stdout.write(`candidates: ${report.discovery.candidates.map((candidate) => candidate.id).join(", ")}\n`);
+      if (report.discovery.relationPreview) process.stdout.write(`relation preview: units=${report.discovery.relationPreview.counts.units}; edges=${report.discovery.relationPreview.counts.edges}; complete=${report.discovery.relationPreview.complete}\n`);
+    }
     if (report.diff) process.stdout.write(`semantic changes: ${report.diff.summary.changes}\n`);
     if (report.impact) process.stdout.write(`impacted units: ${report.impact.impactedUnits.map((unit) => unit.id).join(", ")}\n`);
     if (report.graph) {
@@ -331,7 +364,18 @@ export async function runAuthority(args) {
       return result.ok ? 0 : 1;
     }
     if (subcommand === "discover") {
-      const result = await discoverAuthorityPath(parsed.options.path, parsed.options.query, { maxCandidates: parsed.options.maxCandidates, maxBytes: parsed.options.maxBytes });
+      const result = await discoverAuthorityPath(parsed.options.path, parsed.options.query, {
+        maxCandidates: parsed.options.maxCandidates,
+        maxSnippetTerms: parsed.options.maxSnippetTerms,
+        maxBytes: parsed.options.maxBytes,
+        kind: parsed.options.kind,
+        owner: parsed.options.owner,
+        scope: parsed.options.scope,
+        lifecycle: parsed.options.lifecycle,
+        previewDirection: parsed.options.previewDirection,
+        relations: parsed.options.relations,
+        maxEdges: parsed.options.maxEdges,
+      });
       const report = makeReport("discover", result, result.ok ? "valid" : "invalid", { discovery_bytes: result.discoveryBytes, discovery: result.discovery });
       outputReport(report, parsed.options.json);
       return result.ok ? 0 : 1;
