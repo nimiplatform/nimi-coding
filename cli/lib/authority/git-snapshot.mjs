@@ -366,7 +366,7 @@ async function readHandleBytes(handle, size, entryPath) {
   return bytes;
 }
 
-async function readSecuredFile(secured, absolute, containmentRoot, entryPath, initial) {
+async function readSecuredFile(secured, absolute, containmentRoot, entryPath, initial, budget = null) {
   try {
     const heldBefore = await secured.handle.stat({ bigint: true });
     const currentBefore = await lstat(absolute, { bigint: true });
@@ -374,6 +374,7 @@ async function readSecuredFile(secured, absolute, containmentRoot, entryPath, in
     if (!heldBefore.isFile() || statToken(heldBefore) !== secured.token || !sameObject(heldBefore, currentBefore) || (containmentRoot !== null && !contained(containmentRoot, currentReal))) {
       throw refusal("AUTH_REVIEW_CAPTURE_CHANGED", `worktree authority file changed before bytes were captured: ${entryPath}`, entryPath);
     }
+    if (budget !== null) budget.reserve(heldBefore.size, entryPath);
     const bytes = await readHandleBytes(secured.handle, heldBefore.size, entryPath);
     const heldAfter = await secured.handle.stat({ bigint: true });
     const currentAfter = await lstat(absolute, { bigint: true });
@@ -386,11 +387,11 @@ async function readSecuredFile(secured, absolute, containmentRoot, entryPath, in
   }
 }
 
-async function securedFile(absolute, containmentRoot, entryPath, initial, retainHandle = false) {
+async function securedFile(absolute, containmentRoot, entryPath, initial, retainHandle = false, budget = null) {
   const secured = await openSecuredFile(absolute, containmentRoot, entryPath, initial);
   let retained = false;
   try {
-    const captured = await readSecuredFile(secured, absolute, containmentRoot, entryPath, initial);
+    const captured = await readSecuredFile(secured, absolute, containmentRoot, entryPath, initial, budget);
     if (retainHandle) {
       retained = true;
       return { ...captured, handle: secured.handle };
@@ -414,7 +415,7 @@ async function closeHeldEntries(heldEntries) {
   await Promise.all(heldEntries.map(({ handle }) => handle.close().catch(() => {})));
 }
 
-async function scanWorktree(repository, initial, { retainHandles = false } = {}) {
+async function scanWorktree(repository, initial, { retainHandles = false, budget = null } = {}) {
   const nimiPath = path.join(repository, ".nimi");
   const specPath = path.join(repository, ".nimi", "spec");
   try {
@@ -456,7 +457,7 @@ async function scanWorktree(repository, initial, { retainHandles = false } = {})
         if (childInfo.isSymbolicLink()) throw refusal("AUTH_REVIEW_WORKTREE_ENTRY_INVALID", `worktree authority input refuses symbolic link: ${childPath}`, childPath);
         if (childInfo.isDirectory()) await walk(childAbsolute, childPath);
         else if (childInfo.isFile()) {
-          const captured = await securedFile(childAbsolute, specReal, childPath, initial, retainHandles);
+          const captured = await securedFile(childAbsolute, specReal, childPath, initial, retainHandles, budget);
           entries.push({ path: childPath, type: "regular-file", bytes: captured.bytes, token: captured.token });
           if (retainHandles) heldEntries.push({ path: childPath, type: "regular-file", absolute: childAbsolute, containmentRoot: specReal, ...captured });
         } else throw refusal("AUTH_REVIEW_WORKTREE_ENTRY_INVALID", `worktree authority input contains a non-regular filesystem entry: ${childPath}`, childPath);
@@ -588,15 +589,234 @@ async function captureWorktree(repository, hooks) {
   }
 }
 
-export async function captureStableRegularFile(file, label) {
-  const absolute = path.resolve(process.cwd(), file);
-  const first = await securedFile(absolute, null, label, true);
-  const second = await securedFile(absolute, null, label, false);
-  if (first.token !== second.token || !first.bytes.equals(second.bytes)) throw refusal("AUTH_REVIEW_CAPTURE_CHANGED", `review input changed during capture: ${label}`, label);
-  return first.bytes;
+function stableRegularFileBudget(maxBytes, label) {
+  if (maxBytes === null) return null;
+  return {
+    reserve(size) {
+      if (size > BigInt(maxBytes)) {
+        throw refusal("AUTH_EVIDENCE_INPUT_BUDGET", `evidence input requires ${size} bytes but maxInputBytes is ${maxBytes}: ${label}`, label);
+      }
+    },
+  };
 }
 
-async function createTemporaryRoot(protectedRoots) {
+export async function captureStableRegularFile(file, label, containmentRoot = null, maxBytes = null) {
+  const absolute = path.resolve(process.cwd(), file);
+  const first = await securedFile(absolute, containmentRoot, label, true, true, stableRegularFileBudget(maxBytes, label));
+  try {
+    const second = await securedFile(absolute, containmentRoot, label, false, false, stableRegularFileBudget(maxBytes, label));
+    const committed = await readSecuredFile(first, absolute, containmentRoot, label, false, stableRegularFileBudget(maxBytes, label));
+    if (first.token !== second.token
+      || first.token !== committed.token
+      || !first.bytes.equals(second.bytes)
+      || !first.bytes.equals(committed.bytes)) {
+      throw refusal("AUTH_REVIEW_CAPTURE_CHANGED", `review input changed during capture: ${label}`, label);
+    }
+    return first.bytes;
+  } finally {
+    await first.handle.close().catch(() => {});
+  }
+}
+
+function evidenceRefusal(code, reason, file = ".") {
+  return refusal(code, reason, file);
+}
+
+function mapEvidenceRefusal(error, fallbackCode, fallbackFile = ".") {
+  if (!(error instanceof AuthorityReviewRefusal)) return error;
+  if (error.code === "AUTH_REVIEW_CAPTURE_CHANGED" || error.code === "AUTH_EVIDENCE_CAPTURE_CHANGED") {
+    return evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", error.message, error.file ?? fallbackFile);
+  }
+  if (error.code.startsWith("AUTH_EVIDENCE_")) return error;
+  return evidenceRefusal(fallbackCode, error.message, error.file ?? fallbackFile);
+}
+
+function validEvidencePath(value) {
+  return typeof value === "string"
+    && validateRelativePath(value)
+    && value === value.normalize("NFC")
+    && !value.includes("\0")
+    && !value.includes("\n")
+    && !value.includes("\r")
+    && value.split("/").every((part) => part.toLowerCase() !== ".git");
+}
+
+function evidenceInputBudget(maxInputBytes) {
+  if (!Number.isSafeInteger(maxInputBytes) || maxInputBytes <= 0) {
+    throw evidenceRefusal("AUTH_EVIDENCE_INPUT_BUDGET", "maxInputBytes must be one positive safe integer");
+  }
+  let captured = 0;
+  return {
+    reserve(size, entryPath) {
+      if (size < 0n || size > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw evidenceRefusal("AUTH_EVIDENCE_INPUT_BUDGET", `evidence input is too large to capture exactly: ${entryPath}`, entryPath);
+      }
+      const required = BigInt(captured) + size;
+      if (required > BigInt(maxInputBytes)) {
+        throw evidenceRefusal(
+          "AUTH_EVIDENCE_INPUT_BUDGET",
+          `complete evidence snapshot requires at least ${required} input bytes but maxInputBytes is ${maxInputBytes}`,
+          entryPath,
+        );
+      }
+      captured = Number(required);
+    },
+    get captured() {
+      return captured;
+    },
+  };
+}
+
+async function trackedRegularIndexRecord(repository, bindingPath) {
+  const result = await runGit(repository, ["ls-files", "--stage", "-z", "--error-unmatch", "--", bindingPath]);
+  if (result.signal !== null) throw new Error(`Git process terminated by signal ${result.signal}`);
+  if (result.status !== 0) {
+    throw evidenceRefusal("AUTH_EVIDENCE_BINDING_INVALID", "evidence binding must be one tracked regular repository path", bindingPath);
+  }
+  const records = splitNullRecords(result.stdout);
+  if (records.length !== 1) {
+    throw evidenceRefusal("AUTH_EVIDENCE_BINDING_INVALID", "evidence binding must resolve to exactly one non-conflicted index entry", bindingPath);
+  }
+  const tab = records[0].indexOf(9);
+  if (tab <= 0 || tab === records[0].length - 1) {
+    throw evidenceRefusal("AUTH_EVIDENCE_BINDING_INVALID", "tracked evidence binding index entry is malformed", bindingPath);
+  }
+  const metadata = decodeUtf8(records[0].subarray(0, tab), "tracked evidence binding metadata", "AUTH_EVIDENCE_BINDING_INVALID");
+  const indexedPath = decodeUtf8(records[0].subarray(tab + 1), "tracked evidence binding path", "AUTH_EVIDENCE_BINDING_INVALID");
+  if (!/^(?:100644|100755) (?:[0-9a-f]{40}|[0-9a-f]{64}) 0$/.test(metadata) || indexedPath !== bindingPath) {
+    throw evidenceRefusal("AUTH_EVIDENCE_BINDING_INVALID", "evidence binding must be one exact stage-zero regular Git entry", bindingPath);
+  }
+  return Buffer.from(records[0]);
+}
+
+async function captureEvidenceInput(repository, descriptor, budget, retainHandles) {
+  const heldEntries = [];
+  const pathTokens = [];
+  const parts = descriptor.path.split("/");
+  let absolute = repository;
+  let retained = false;
+
+  async function retainDirectory(directory, entryPath) {
+    const secured = await securedDirectory(directory, repository, entryPath, true);
+    pathTokens.push({ path: entryPath, token: secured.token });
+    if (retainHandles) heldEntries.push({ path: entryPath, type: "directory", absolute: directory, containmentRoot: repository, ...secured });
+    else await secured.handle.close();
+  }
+
+  function missing(missingAbsolute, missingPath) {
+    if (!descriptor.allowMissing) {
+      throw evidenceRefusal(descriptor.invalidCode, `${descriptor.role} input is missing: ${descriptor.path}`, descriptor.path);
+    }
+    retained = retainHandles;
+    return {
+      role: descriptor.role,
+      path: descriptor.path,
+      type: "missing",
+      bytes: null,
+      token: null,
+      pathTokens,
+      heldEntries,
+      missingAbsolute,
+      missingPath,
+    };
+  }
+
+  try {
+    await retainDirectory(repository, ".");
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      absolute = path.join(absolute, parts[index]);
+      const entryPath = parts.slice(0, index + 1).join("/");
+      try {
+        const info = await lstat(absolute, { bigint: true });
+        if (info.isSymbolicLink() || !info.isDirectory()) {
+          throw evidenceRefusal(descriptor.invalidCode, `${descriptor.role} ancestor is not one regular non-symlink directory: ${entryPath}`, entryPath);
+        }
+      } catch (error) {
+        if (error?.code === "ENOENT") return missing(absolute, entryPath);
+        throw error;
+      }
+      await retainDirectory(absolute, entryPath);
+    }
+
+    const target = path.join(repository, ...parts);
+    try {
+      const info = await lstat(target, { bigint: true });
+      if (info.isSymbolicLink() || !info.isFile()) {
+        throw evidenceRefusal(descriptor.invalidCode, `${descriptor.role} input is not one regular non-symlink file: ${descriptor.path}`, descriptor.path);
+      }
+    } catch (error) {
+      if (error?.code === "ENOENT") return missing(target, descriptor.path);
+      throw error;
+    }
+    const captured = await securedFile(target, repository, descriptor.path, true, retainHandles, budget);
+    if (retainHandles) heldEntries.push({ path: descriptor.path, type: "regular-file", absolute: target, containmentRoot: repository, ...captured });
+    retained = retainHandles;
+    return {
+      role: descriptor.role,
+      path: descriptor.path,
+      type: "regular-file",
+      bytes: captured.bytes,
+      token: captured.token,
+      pathTokens,
+      heldEntries,
+      missingAbsolute: null,
+      missingPath: null,
+    };
+  } catch (error) {
+    throw mapEvidenceRefusal(error, descriptor.invalidCode, descriptor.path);
+  } finally {
+    if (!retained) await closeHeldEntries(heldEntries);
+  }
+}
+
+function sameEvidenceInput(left, right) {
+  if (left.role !== right.role
+    || left.path !== right.path
+    || left.type !== right.type
+    || left.token !== right.token
+    || left.pathTokens.length !== right.pathTokens.length) return false;
+  for (let index = 0; index < left.pathTokens.length; index += 1) {
+    if (left.pathTokens[index].path !== right.pathTokens[index].path
+      || left.pathTokens[index].token !== right.pathTokens[index].token) return false;
+  }
+  return left.type === "missing" || left.bytes.equals(right.bytes);
+}
+
+async function verifyEvidenceInput(entry) {
+  try {
+    await verifyHeldEntries(entry.heldEntries);
+  } catch (error) {
+    throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `${entry.role} changed before evidence capture commit: ${entry.path}; ${error.message}`, entry.path);
+  }
+  if (entry.type !== "missing") return;
+  try {
+    await lstat(entry.missingAbsolute, { bigint: true });
+    throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `missing locator appeared during capture: ${entry.path}`, entry.path);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_CAPTURE_CHANGED", entry.path);
+  }
+}
+
+function semanticEvidenceInput(entry) {
+  return {
+    role: entry.role,
+    path: entry.path,
+    type: entry.type,
+    bytes: entry.bytes,
+  };
+}
+
+function evidenceInputMetadata(entries) {
+  return entries.map((entry) => ({
+    role: entry.role,
+    path: entry.path,
+    type: entry.type,
+    bytes: entry.bytes?.length ?? 0,
+  }));
+}
+
+async function createTemporaryRoot(protectedRoots, prefix = "nimicoding-authority-review-") {
   let base;
   try {
     base = await realpath(os.tmpdir());
@@ -608,7 +828,7 @@ async function createTemporaryRoot(protectedRoots) {
   if (protectedRoots.some((protectedRoot) => contained(protectedRoot, base))) {
     throw refusal("AUTH_REVIEW_TEMPORARY_INVALID", "system temporary directory must be outside the reviewed worktree and Git administration directories");
   }
-  const created = await mkdtemp(path.join(base, "nimicoding-authority-review-"));
+  const created = await mkdtemp(path.join(base, prefix));
   try {
     const temporaryRoot = await realpath(created);
     const info = await lstat(temporaryRoot);
@@ -619,6 +839,168 @@ async function createTemporaryRoot(protectedRoots) {
   } catch (error) {
     await rm(created, { recursive: true, force: true });
     throw error;
+  }
+}
+
+function evidenceDescriptors(bindingPath, probeResultsPath, locatorPaths) {
+  if (!validEvidencePath(bindingPath) || !bindingPath.startsWith(".nimi/config/")) {
+    throw evidenceRefusal("AUTH_EVIDENCE_BINDING_INVALID", "bindingPath must be one repository-relative path nested under .nimi/config", String(bindingPath ?? "."));
+  }
+  if (probeResultsPath !== null && probeResultsPath !== undefined && !validEvidencePath(probeResultsPath)) {
+    throw evidenceRefusal("AUTH_EVIDENCE_INPUT_INVALID", "probeResultsPath must be one safe repository-relative regular-file path", String(probeResultsPath));
+  }
+  if (!Array.isArray(locatorPaths) || locatorPaths.some((entry) => !validEvidencePath(entry))) {
+    throw evidenceRefusal("AUTH_EVIDENCE_LOCATOR_INVALID", "locatorPaths must be one list of safe repository-relative paths");
+  }
+  const orderedLocators = [...locatorPaths].sort(compareText);
+  if (new Set(orderedLocators.map((entry) => entry.toLowerCase())).size !== orderedLocators.length) {
+    throw evidenceRefusal("AUTH_EVIDENCE_LOCATOR_INVALID", "locatorPaths must not contain duplicate or portable-colliding paths");
+  }
+  const allPaths = [bindingPath, ...(probeResultsPath === null || probeResultsPath === undefined ? [] : [probeResultsPath]), ...orderedLocators];
+  if (new Set(allPaths.map((entry) => entry.toLowerCase())).size !== allPaths.length) {
+    throw evidenceRefusal("AUTH_EVIDENCE_INPUT_INVALID", "binding, probe results, and locator paths must be logically distinct without portable collisions");
+  }
+  return [
+    { role: "binding", path: bindingPath, allowMissing: false, invalidCode: "AUTH_EVIDENCE_BINDING_INVALID" },
+    ...(probeResultsPath === null || probeResultsPath === undefined ? [] : [{ role: "probe-results", path: probeResultsPath, allowMissing: false, invalidCode: "AUTH_EVIDENCE_INPUT_INVALID" }]),
+    ...orderedLocators.map((entryPath) => ({ role: "locator", path: entryPath, allowMissing: true, invalidCode: "AUTH_EVIDENCE_LOCATOR_INVALID" })),
+  ];
+}
+
+export async function withGitEvidenceSnapshot({
+  repositoryPath,
+  bindingPath,
+  probeResultsPath = null,
+  locatorPaths,
+  maxInputBytes,
+  hooks = null,
+}, callback) {
+  if (typeof callback !== "function") throw evidenceRefusal("AUTH_EVIDENCE_INPUT_INVALID", "evidence snapshot requires one callback");
+  const budget = evidenceInputBudget(maxInputBytes);
+  const descriptors = evidenceDescriptors(bindingPath, probeResultsPath, locatorPaths);
+  let resolved;
+  try {
+    resolved = await resolveRepository(repositoryPath);
+  } catch (error) {
+    throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_REPOSITORY_INVALID");
+  }
+  const { repository, protectedRoots } = resolved;
+  let headOid;
+  try {
+    headOid = await resolveBaseOid(repository, "HEAD");
+  } catch (error) {
+    throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_HEAD_INVALID");
+  }
+  if (hooks?.afterHeadResolved) await hooks.afterHeadResolved({ repository, headOid });
+
+  let trackedBinding;
+  try {
+    trackedBinding = await trackedRegularIndexRecord(repository, bindingPath);
+  } catch (error) {
+    throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_BINDING_INVALID", bindingPath);
+  }
+
+  let authorityEntries;
+  let semanticInputs;
+  let authorityHeld = [];
+  const capturedInputs = [];
+  try {
+    let firstAuthority;
+    try {
+      const captured = await scanWorktree(repository, true, { retainHandles: true, budget });
+      firstAuthority = captured.entries;
+      authorityHeld = captured.heldEntries;
+    } catch (error) {
+      throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_AUTHORITY_INVALID", SPEC_ROOT);
+    }
+    if (hooks?.afterAuthorityCapture) {
+      await hooks.afterAuthorityCapture({
+        repository,
+        headOid,
+        authority: semanticEntries(firstAuthority).map((entry) => ({ path: entry.path, type: entry.type, bytes: entry.bytes?.length ?? 0 })),
+      });
+    }
+    for (const descriptor of descriptors) capturedInputs.push(await captureEvidenceInput(repository, descriptor, budget, true));
+    if (hooks?.afterInitialCapture) {
+      await hooks.afterInitialCapture({ repository, headOid, inputs: evidenceInputMetadata(capturedInputs) });
+    }
+
+    const recaptureBudget = evidenceInputBudget(maxInputBytes);
+    let secondAuthority;
+    try {
+      secondAuthority = (await scanWorktree(repository, false, { budget: recaptureBudget })).entries;
+    } catch (error) {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `authority inventory changed during evidence capture: ${error.message}`, SPEC_ROOT);
+    }
+    if (!compareCapturedEntries(firstAuthority, secondAuthority, true)) {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", "authority paths, types, metadata, or bytes changed during evidence capture", SPEC_ROOT);
+    }
+    for (let index = 0; index < descriptors.length; index += 1) {
+      let second;
+      try {
+        second = await captureEvidenceInput(repository, descriptors[index], recaptureBudget, false);
+      } catch (error) {
+        throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `${descriptors[index].role} input changed during evidence capture: ${descriptors[index].path}; ${error.message}`, descriptors[index].path);
+      }
+      if (!sameEvidenceInput(capturedInputs[index], second)) {
+        throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `${descriptors[index].role} path, type, metadata, or bytes changed during evidence capture: ${descriptors[index].path}`, descriptors[index].path);
+      }
+    }
+    const secondTrackedBinding = await trackedRegularIndexRecord(repository, bindingPath).catch((error) => {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `evidence binding tracking state changed during capture: ${error.message}`, bindingPath);
+    });
+    if (!trackedBinding.equals(secondTrackedBinding)) {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", "evidence binding index identity changed during capture", bindingPath);
+    }
+    if (hooks?.beforeCaptureCommit) {
+      await hooks.beforeCaptureCommit({ repository, headOid, inputs: evidenceInputMetadata(capturedInputs) });
+    }
+    await verifyHeldEntries(authorityHeld).catch((error) => {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `authority changed before evidence capture commit: ${error.message}`, SPEC_ROOT);
+    });
+    for (const entry of capturedInputs) await verifyEvidenceInput(entry);
+    const committedTrackedBinding = await trackedRegularIndexRecord(repository, bindingPath).catch((error) => {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", `evidence binding tracking state changed before capture commit: ${error.message}`, bindingPath);
+    });
+    if (!trackedBinding.equals(committedTrackedBinding)) {
+      throw evidenceRefusal("AUTH_EVIDENCE_CAPTURE_CHANGED", "evidence binding index identity changed before capture commit", bindingPath);
+    }
+    authorityEntries = semanticEntries(firstAuthority);
+    semanticInputs = capturedInputs.map(semanticEvidenceInput);
+  } finally {
+    await closeHeldEntries(authorityHeld);
+    await Promise.all(capturedInputs.map((entry) => closeHeldEntries(entry.heldEntries)));
+  }
+
+  let temporaryRoot;
+  try {
+    temporaryRoot = await createTemporaryRoot(protectedRoots, "nimicoding-authority-evidence-");
+  } catch (error) {
+    throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_TEMPORARY_INVALID");
+  }
+  const authorityRoot = path.join(temporaryRoot, "authority");
+  try {
+    await mkdir(authorityRoot, { mode: 0o700 });
+    try {
+      await materializeEntries(authorityRoot, authorityEntries, "AUTH_EVIDENCE_AUTHORITY_INVALID");
+    } catch (error) {
+      throw mapEvidenceRefusal(error, "AUTH_EVIDENCE_AUTHORITY_INVALID", SPEC_ROOT);
+    }
+    const counts = snapshotCounts(authorityEntries);
+    return await callback({
+      repository,
+      headOid,
+      temporaryRoot,
+      authority: {
+        root: authorityRoot,
+        contentIdentity: authoritySnapshotContentIdentity(authorityEntries),
+        ...counts,
+      },
+      inputs: semanticInputs,
+      capturedInputBytes: budget.captured,
+    });
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
   }
 }
 

@@ -40,6 +40,7 @@ pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authorit
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 pnpm exec nimicoding authority review . --base origin/main --bindings .nimi/config/authority-verifiers.yaml --dispositions .nimi/local/authority-impact-dispositions.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
+pnpm exec nimicoding authority evidence . --bindings .nimi/config/authority-evidence.yaml --max-units 1024 --max-bindings 16 --max-locators 128 --max-edges 128 --max-input-bytes 2097152 --max-bytes 1048576 --json
 ```
 
 `discover` returns bounded deterministic lexical candidates when a task lacks an exact ID. It does not perform semantic search, select authority, attach context, claim complete recall, or prove absence on zero matches. After choosing an ID from task or product authority, call exact `query` or `context`. Candidate and byte bounds are explicit; failures return `discovery: null` and never silently remove candidates to fit bytes.
@@ -65,6 +66,29 @@ bindings:
 `impact` reports review obligations derived from declared relations. Disposition text does not prove that implementation, consumers, or tests are synchronized. Diff/impact budget failure returns no partial semantic payload.
 
 `review` resolves the explicit base ref once to a full commit OID, reads the complete base `.nimi/spec` tree from Git objects, and retains exact filesystem handles while it recaptures the complete current tree and performs a capture-commit revalidation. It includes tracked edits/deletions and untracked or unsupported entries; unsupported content still reaches the existing compiler and fails closed. Materialization is isolated outside the worktree and Git administration roots. The compact `nimicoding.authority-review/v1` result combines the existing semantic diff, declared impact, and deterministic audit of the captured current snapshot. It never checkout/stash/reset/stage/commit, does not attribute current findings to the change, and does not manage branches, PRs, approvals, or releases.
+
+`evidence` produces the machine-first `nimicoding.authority-evidence/v1` product from one stable current-worktree capture. A project-owned binding connects one exact active Rule/scope to one manifest command target, one manifest test script, and its exact test targets through the closed package-owned `package-script-target-reachability/v1` probe:
+
+```yaml
+format: nimicoding.authority-evidence-bindings/v1
+required_bindings: [checkout.session-gate]
+bindings:
+  - id: checkout.session-gate
+    authority:
+      unit: rule.checkout-session
+      scope: api.checkout
+    probe: package-script-target-reachability/v1
+    manifest: package.json
+    command:
+      script: check:checkout-session
+      target: scripts/check-checkout-session.ts
+    tests:
+      script: test:checkout-session
+      targets: [scripts/check-checkout-session.test.ts]
+    external_probe: null
+```
+
+The binding must be one tracked, stage-zero regular file under `.nimi/config/**`; an optional result must be a regular file under `.nimi/local/**`. The repository must have a resolvable committed `HEAD`, captured once as context, and every locator refuses symlinks, path escape, and any case-folded `.git` path segment. The built-in probe statically matches only exact `node --import tsx <target>` and `pnpm exec vitest run <targets...>` script shapes; it never executes commands or tests. Authority, binding, and declared repository inputs receive independent deterministic identities, and an optional `--probe-results` file is accepted only as an identity-bound external supplied observation with `packageAttestation: false`. The product returns every budgeted locator and evidence edge, with independent canonical unit/scope SourceMap locations. Reachable targets prove only the declared package-script target path; they do not prove runtime/API reachability, test execution or success, implementation behavior, or authority conformance. Accordingly every completed product reports `conformanceStatus: not_evaluated`; invalid input, capture races, or budget overflow return no partial evidence.
 
 Canonical YAML is a closed `format` + non-empty `units` container. Canonical Markdown is a bounded single-unit profile. Unit identity is explicit and independent of file names, ordering, moves, and regrouping. `authority check` recursively rejects unsupported files, symlinks, non-canonical bytes, illegal grammar, identity, owner/lifecycle, and relation semantics.
 
@@ -96,7 +120,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-Graph navigation, deterministic audit, and Git-aware review do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. Review is not a Git/PR workflow. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+Graph navigation, deterministic audit, Git-aware review, and current-worktree evidence do not export private AuthorityIR/SourceMap, infer prose relations or predicates, or provide a detector plugin runtime. Review is not a Git/PR workflow; evidence is not a shell, test, plugin, or conformance runner. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

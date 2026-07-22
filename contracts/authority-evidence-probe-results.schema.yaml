@@ -1,0 +1,38 @@
+version: 1
+contract:
+  id: nimicoding.authority-evidence-probe-results.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.authority-evidence-probe-results/v1
+container:
+  path: .nimi/local
+  entry: one_exact_regular_non-symlink_supplied_observation_file
+  Git_tracking: not_required
+identity_pattern: '^sha256:[0-9a-f]{64}$'
+identifier_pattern: '^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$'
+version_pattern: '^[A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?$'
+fields:
+  top: [format, authority_content_identity, repository_input_identity, binding_identity, results]
+  item: [binding, probe, version, adapter, execution, outcome]
+  adapter: [id, version]
+execution: [completed, failed, unsupported]
+outcome:
+  completed: [passed, failed]
+  failed_or_unsupported: null
+constraints:
+  identities: exact_lowercase_SHA-256_identities_of_the_captured_inputs
+  results: unique_by_binding_with_no_extra_or_duplicate_items
+  binding: exact_configured_binding_ID_with_one_external_probe_declaration
+  probe_and_version: exact_match_to_the_binding_external_probe
+  adapter_ID: exact_dotted_lowercase_identifier
+  adapter_version: explicit_non_empty_version
+  malformed_unknown_or_identity_mismatched_result: refused_not_gap_or_clean
+  missing_declared_result: represented_by_runtime_as_not_provided
+  execution_and_outcome: exact_conditional_shape
+  extra_fields: forbidden
+trust:
+  source: external_supplied_observation
+  package_attestation: false
+  shape_identity_or_coverage_validation_proves_execution: false
+  reported_pass_proves_conformance_or_test_success: false
+  external_result_creates_deterministic_finding_or_blocking_authority: false

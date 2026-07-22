@@ -1,4 +1,4 @@
-version: 5
+version: 6
 product:
   package_name: "@nimiplatform/nimi-coding"
   mission: canonical_authority_methodology_formatter_compiler_primitives_and_deterministic_gates
@@ -11,6 +11,7 @@ owned_surfaces:
   - bounded_direct_references_exact_relation_paths_and_local_subgraphs
   - project_bound_deterministic_authority_audit_and_SARIF_projection
   - git_aware_exact_read_only_authority_change_review
+  - stable_current_worktree_authority_to_package_script_target_evidence
   - optional_L3_repository_governance_not_authority_admission
 canonical_boundary:
   host_product_authority: .nimi/spec/**/*.authority.{yaml,md}
@@ -36,3 +37,4 @@ claims:
   graph: complete_bounded_explicit_relation_navigation_not_semantic_inference_or_raw_IR
   audit: governance_bound_verifier_results_not_prose_predicate_inference_or_plugin_execution
   review: immutable_base_OID_and_stable_worktree_exact_snapshots_composed_through_existing_compiler_diff_impact_and_current_audit_oracles
+  evidence: exact_identity_bound_package_script_target_reachability_and_external_supplied_observations_not_command_execution_test_success_runtime_reachability_or_conformance_attestation

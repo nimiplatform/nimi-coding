@@ -1,0 +1,53 @@
+version: 1
+contract:
+  id: nimicoding.authority-evidence-bindings.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.authority-evidence-bindings/v1
+probe: package-script-target-reachability/v1
+container:
+  path: .nimi/config
+  Git_index: one_exact_tracked_stage-zero_regular_entry
+  worktree: exact_current_regular_non-symlink_bytes
+identifier_pattern: '^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$'
+script_pattern: '^[a-z0-9](?:[a-z0-9._:-]*[a-z0-9])?$'
+version_pattern: '^[A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?$'
+fields:
+  top: [format, required_bindings, bindings]
+  binding: [id, authority, probe, manifest, command, tests, external_probe]
+  authority: [unit, scope]
+  command: [script, target]
+  tests: [script, targets]
+  external_probe: [id, version, required]
+paths:
+  form: non_empty_repository_relative_POSIX_path
+  forbidden: [absolute, empty_segment, dot_segment, dot_dot_segment, backslash, NUL, any_case-folded_.git_path_segment]
+  resolution: lexical_and_physical_containment_in_exact_repository_root
+  symlink_or_non_regular_leaf_or_parent: refused_and_never_followed
+package_script_grammar:
+  parsing: static_manifest_string_comparison_only
+  separator: one_ASCII_space_between_tokens_with_no_leading_or_trailing_space
+  command: node --import tsx <target>
+  tests: pnpm exec vitest run <targets...>
+  targets: exact_binding_paths_in_declared_order_using_only_ASCII_letters_digits_dot_underscore_hyphen_and_slash
+  forbidden: [quoting, escaping, environment_assignment, additional_option_or_flag, glob, pipe, redirect, command_substitution, command_chaining, arbitrary_executable]
+constraints:
+  required_bindings: non_empty_unique_exact_binding_IDs
+  binding_ID: unique_exact_dotted_lowercase_identifier
+  authority_unit: exact_active_rule_ID
+  authority_scope: exact_member_of_the_bound_active_rule_scope
+  probe: fixed_package_owned_probe_only
+  manifest: one_safe_repository_relative_regular_JSON_file_locator
+  command_script: one_exact_manifest_scripts_key
+  command_target: one_safe_repository_relative_regular_file_locator
+  tests_script: one_exact_manifest_scripts_key_distinct_from_command_script
+  test_targets: non_empty_unique_safe_repository_relative_regular_file_locators
+  within_binding_locator_roles: manifest_command_target_and_test_targets_are_pairwise_portable-distinct
+  cross_binding_locator_paths: exact_duplicates_may_share_one_input_but_portable_case_collisions_are_forbidden
+  configured_binding_not_required: evaluated_but_does_not_create_required_coverage
+  external_probe: null_or_exact_object
+  external_probe_ID: exact_dotted_lowercase_identifier
+  external_probe_version: explicit_non_empty_version
+  external_probe_required: boolean
+  duplicate_or_extra_fields: forbidden
+  binding_product_semantics_defaults_or_conformance_claims: forbidden

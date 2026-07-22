@@ -1,0 +1,200 @@
+version: 1
+spec:
+  id: nimicoding.authority-evidence.v1
+  owner: nimi-coding
+  status: active
+product_claim: one_stable_current_worktree_and_one_closed_project_binding_produce_exact_package_script_locator_and_declared_target_reachability_evidence_without_claiming_implementation_conformance_or_test_execution
+command: nimicoding authority evidence <repository-path> --bindings <tracked-.nimi/config-path> [--probe-results <.nimi/local-path>] --max-units <positive-safe-integer> --max-bindings <positive-safe-integer> --max-locators <positive-safe-integer> --max-edges <positive-safe-integer> --max-input-bytes <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+surface:
+  primary_machine_product: JSON
+  human_output: concise_projection_of_the_same_logical_product
+  repository_selection: exact_current_non_bare_Git_worktree_root
+  repository_HEAD: one_resolvable_committed_full_OID_captured_once_as_non-semantic_context_with_unborn_HEAD_refused
+  authority_root: .nimi/spec
+inputs:
+  authority: complete_stably_captured_current_.nimi/spec_admitted_by_compileAuthorityPath
+  binding:
+    format: nimicoding.authority-evidence-bindings/v1
+    authority: package://@nimiplatform/nimi-coding/contracts/authority-evidence-bindings.schema.yaml
+    source: one_stably_captured_regular_non_symlink_project_owned_.nimi/config_file_with_one_exact_stage-zero_regular_Git_index_entry
+    required_bindings: non_empty_so_an_accidentally_emptied_required_surface_is_refused
+    product_authority: false
+  external_results:
+    format: nimicoding.authority-evidence-probe-results/v1
+    authority: package://@nimiplatform/nimi-coding/contracts/authority-evidence-probe-results.schema.yaml
+    source: optional_stably_captured_regular_non_symlink_.nimi/local_supplied_observation_file
+    execution_or_truth_attestation: not_claimed
+complete_input_boundary:
+  included:
+    - complete_.nimi/spec_inventory_paths_types_and_bytes
+    - exact_binding_bytes
+    - each_configured_manifest_path_type_and_bytes
+    - each_configured_command_target_path_type_and_bytes
+    - each_configured_test_target_path_type_and_bytes
+    - optional_external_result_bytes
+  repository_evidence_universe: binding_declared_paths_only
+  unbound_repository_files_inspected_or_proved_absent: false
+  path_escape_symlink_following_or_any_case-folded_.git_path_segment_access: forbidden
+  capture:
+    first: retain_exact_directory_and_file_handles_for_all_present_inputs_and_parent_directories_for_missing_inputs
+    second: recapture_complete_authority_inventory_binding_and_all_declared_repository_paths
+    commit: revalidate_all_held_paths_types_metadata_and_bytes
+    race: any_binding_authority_path_type_inventory_or_byte_change_refuses_the_whole_product
+  materialization: captured_authority_uses_one_isolated_temporary_directory_with_readback_validation_and_cleanup_after_success_or_failure
+binding:
+  exact_fields: [id, authority, probe, manifest, command, tests, external_probe]
+  authority_fields: [unit, scope]
+  authority_resolution: exact_active_rule_and_exact_declared_scope_member
+  probe: package-script-target-reachability/v1
+  manifest: safe_repository_relative_regular_JSON_file
+  command_fields: [script, target]
+  tests_fields: [script, targets]
+  test_targets: non_empty_unique_repository_relative_paths
+  external_probe: null_or_exact_id_version_required_declaration
+  semantics: project_owned_integration_locator_only
+  exact_authority_ref_proves_probe_predicate_equivalence: false
+  project_product_defaults_statement_condition_failure_or_conformance: forbidden
+package_owned_probe:
+  id: package-script-target-reachability/v1
+  version: 1
+  execution: deterministic_static_parse_on_captured_bytes_without_running_any_command
+  manifest_read:
+    document: one_valid_UTF-8_JSON_object_with_one_scripts_object
+    duplicate_or_invalid_JSON_structure: refused
+  admitted_command_script: node --import tsx <target>
+  admitted_test_script: pnpm exec vitest run <targets...>
+  grammar:
+    token_separator: one_ASCII_space
+    target_token_charset: ASCII_letters_digits_dot_underscore_hyphen_and_slash
+    target_order: exact_binding_order
+    inferred_alias_flag_glob_quote_shell_or_environment_semantics: forbidden
+  locators:
+    - authority_unit_and_scope_independent_SourceMap_locations
+    - manifest_file_and_exact_script_value_locations
+    - command_target_regular_file
+    - each_test_target_regular_file
+  graph_edges:
+    - authority_to_project_binding
+    - binding_to_manifest
+    - manifest_to_command_script
+    - command_script_to_command_target
+    - manifest_to_test_script
+    - test_script_to_each_test_target
+  graph_product: every_budgeted_edge_is_returned_as_one_explicit_per-binding_edge_record
+  graph_edge_status: [bound, reachable, missing, mismatch, indeterminate]
+  reachability:
+    reachable: exact_script_grammar_matches_the_binding_and_every_required_target_locator_exists_as_one_supported_regular_file
+    missing: exact_manifest_script_or_declared_target_is_absent
+    unsupported: present_input_cannot_be_decided_by_the_closed_static_grammar_or_supported_entry_types
+    basis: project_binding_plus_package_computed_exact_locator_resolution
+    runtime_call_graph_execution_test_result_or_behavioral_conformance: not_claimed
+    declared_target_existence: evaluated_independently_from_script_grammar_so_a_missing_target_is_never_hidden_by_an_unsupported_script
+external_probe_results:
+  identities_required: [authority_content_identity, repository_input_identity, binding_identity]
+  result_match: exact_binding_external_probe_ID_version_and_unique_result_item
+  output_state_mapping:
+    no_item: not_provided
+    completed_passed: [reported_completed, reported_passed]
+    completed_failed: [reported_completed, reported_failed]
+    failed: [reported_execution_failed, null]
+    unsupported: [reported_unsupported, null]
+  output_source: external_supplied
+  packageAttestation: false
+  required_not_provided_failed_unsupported_or_reported_failed: required_evidence_gap
+  optional_state: observation_only
+  malformed_extra_duplicate_unknown_or_identity_mismatch: refused_with_null_evidence
+  reported_pass_effect: satisfies_only_the_declared_supplied_observation_requirement
+  reported_pass_does_not_prove: [probe_execution, test_success, implementation_conformance, authority_satisfaction]
+identity:
+  format: sha256_colon_lowercase_hex
+  authority_content_identity:
+    domain: nimicoding.authority-snapshot-content/v1
+    inputs: complete_sorted_.nimi/spec_regular_file_paths_types_lengths_and_exact_bytes
+  repository_input_identity:
+    domain: nimicoding.repository-evidence-input/v1
+    inputs: sorted_unique_binding_declared_repository_paths_entry_state_type_exact_byte_length_and_bytes
+    missing_or_unsupported: explicit_framed_state_marker_without_following_or_inference
+    excludes: [authority_bytes, binding_bytes, external_result_bytes]
+  binding_identity:
+    domain: nimicoding.authority-evidence-binding/v1
+    inputs: exact_captured_binding_byte_length_and_bytes
+  excluded_from_all_semantic_identities: [absolute_repository_path, branch_name, mtime, ctime, inode, permissions, traversal_order, temporary_path]
+  external_result: excluded_from_input_identities_and_required_to_exact_match_all_three
+product:
+  format: nimicoding.authority-evidence/v1
+  top_level_fields: [format, operationStatus, evidenceStatus, complete, partial, conformanceStatus, identities, bindings, observations, findings, gaps, counts, budgets]
+  operationStatus: completed
+  evidenceStatus:
+    unavailable: at_least_one_required_package_computed_script_or_target_reachability_finding
+    indeterminate: no_required_reachability_finding_and_at_least_one_required_gap
+    available: no_required_reachability_finding_or_gap
+  complete: false_only_when_at_least_one_required_gap_exists
+  partial: false
+  conformanceStatus: not_evaluated
+  binding_record:
+    authority: exact_unit_scope_unit_location_and_independent_scopeLocation
+    packageProbe: package_computed_ID_version_and_execution_status
+    manifest: exact_path_script_locations_and_entry_state
+    command: exact_script_target_locations_and_reachability_state
+    tests: exact_script_target_locations_and_reachability_state
+    externalProbe: declared_requirement_reported_state_and_packageAttestation_false
+    edges: complete_explicit_5_plus_test_target_count_graph_with_source_target_basis_status_and_locations
+    obligationKeys:
+      consumer: exact_rule_ID_consumer_scope_tuple
+      test: exact_rule_ID_test_rule_ID_tuple
+  observation: declaration_existence_exact_script_shape_and_reachability_facts_only
+  finding:
+    code: AUTH_EVIDENCE_REQUIRED_TARGET_UNREACHABLE
+    basis: governance_bound_package_computed_exact_locator_reachability
+    claim: required_bound_script_or_target_locator_is_missing_not_that_implementation_violates_authority
+  gaps:
+    - required_binding_missing
+    - supported_static_probe_capability_unavailable
+    - required_external_probe_not_provided
+    - required_external_probe_reported_execution_failure
+    - required_external_probe_reported_unsupported
+    - required_external_probe_reported_failure
+  locations: repository_relative_with_exact_range_for_authority_manifest_script_and_present_target_witnesses
+  fingerprints:
+    algorithm: SHA-256_with_sha256_colon_prefix
+    inputs: stable_item_code_probe_version_binding_ID_authority_ID_scope_and_logical_target_IDs
+    excluded: [absolute_path, relative_path, range, message, repository_input_identity, external_adapter, policy]
+  ordering:
+    bindings: binding_ID
+    locators: logical_locator_ID
+    edges: [source, target, edge_ID]
+    observations_findings_gaps: [binding_ID, code, logical_target_ID]
+budgets:
+  required: [maxUnits, maxBindings, maxLocators, maxEdges, maxInputBytes, maxBytes]
+  values: positive_safe_integers
+  maxUnits: complete_admitted_authority_corpus_unit_count
+  maxBindings: distinct_union_of_required_and_configured_binding_IDs
+  maxLocators: all_logical_authority_manifest_script_command_target_and_test_target_locators_required_for_complete_output
+  maxEdges: all_explicitly_returned_declared_evidence_graph_edges_before_status_filtering
+  maxInputBytes: sum_of_all_captured_regular_authority_binding_manifest_target_and_external_result_bytes
+  maxBytes: UTF-8_bytes_of_compact_JSON.stringify_complete_evidence
+  overflow: AUTH_EVIDENCE_BUDGET_with_evidence_null_partial_false
+outcomes:
+  completed_available: evidence_present_complete_true_evidenceStatus_available_exit_0_without_conformance_claim
+  completed_unavailable: evidence_present_with_required_package_computed_finding_exit_1
+  completed_indeterminate: evidence_present_complete_false_with_required_gap_exit_1
+  refused: invalid_repository_corpus_binding_authority_reference_scope_manifest_JSON_result_identity_capture_or_budget_returns_evidence_null_partial_false_exit_1
+  usage_error: missing_repeated_unknown_or_invalid_CLI_argument_exit_2_without_evidence_product
+  failed: uncaught_IO_resource_or_internal_failure_exit_2_without_evidence_product
+  partial_or_truncated_output: forbidden
+anti_overclaim:
+  file_or_target_exists_means_conformance: false
+  exact_package_script_shape_means_command_executed: false
+  test_target_exists_means_test_executed_or_passed: false
+  external_reported_pass_means_package_attestation: false
+  reachability_label: declared_package_script_target_reachability_only
+  clean_verified_conforms_or_test_passed_language: forbidden
+boundaries:
+  writes_authority_repository_Git_index_or_project_files: false
+  arbitrary_shell_plugin_script_or_test_execution: forbidden
+  source_code_AST_universal_ontology_call_graph_or_semantic_inference: forbidden
+  canonical_grammar_kind_field_or_relation_change: none
+  durable_cache_database_history_receipt_or_ledger: none
+  SARIF_review_diff_impact_or_audit_aggregation: none
+  model_embedding_AI_remediation_UI_IDE_Studio_Atlas_or_release_orchestration: not_owned
+  public_AuthorityIR_or_SourceMap_export: none

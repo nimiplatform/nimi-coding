@@ -37,6 +37,7 @@ pnpm exec nimicoding authority audit .nimi/spec --bindings .nimi/config/authorit
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 pnpm exec nimicoding authority review . --base origin/main --bindings .nimi/config/authority-verifiers.yaml --dispositions .nimi/local/authority-impact-dispositions.yaml --max-units 64 --max-edges 128 --max-bytes 262144 --json
+pnpm exec nimicoding authority evidence . --bindings .nimi/config/authority-evidence.yaml --max-units 1024 --max-bindings 16 --max-locators 128 --max-edges 128 --max-input-bytes 2097152 --max-bytes 1048576 --json
 ```
 
 `authority check` 是 `.nimi/spec` 唯一 conformance gate。它递归拒绝 unsupported file、symlink、非 canonical bytes，以及非法 grammar、identity、owner/lifecycle 与 relation。
@@ -64,6 +65,29 @@ bindings:
 `impact` 只报告由已声明关系导出的 review obligations；disposition 文本不能证明 implementation、consumer 或 test 已同步。Diff/impact 预算失败不返回 partial semantic payload。
 
 `review` 在 capture 开始时将显式 base ref 一次解析为 full commit OID，从 Git object database 读取完整 base `.nimi/spec`；current snapshot 会保留 exact filesystem handles，在完整 recapture 后执行 capture-commit 全量复核。Tracked edit/deletion、untracked 与 unsupported entry 都会进入 snapshot；unsupported content 仍由现有 compiler fail closed。Materialization 与 worktree/Git administration roots 物理隔离。紧凑的 `nimicoding.authority-review/v1` 直接组合现有 semantic diff、declared impact 与 captured current snapshot 的 deterministic audit。它不会 checkout/stash/reset/stage/commit，不把 current finding 归因为本次 change，也不管理 branch、PR、approval 或 release。
+
+`evidence` 从一次稳定的 current-worktree capture 生成 machine-first `nimicoding.authority-evidence/v1` 产品。Project-owned binding 通过封闭的 package-owned `package-script-target-reachability/v1` probe，把一个 exact active Rule/scope 连接到一个 manifest command target、一个 manifest test script 及其 exact test targets：
+
+```yaml
+format: nimicoding.authority-evidence-bindings/v1
+required_bindings: [checkout.session-gate]
+bindings:
+  - id: checkout.session-gate
+    authority:
+      unit: rule.checkout-session
+      scope: api.checkout
+    probe: package-script-target-reachability/v1
+    manifest: package.json
+    command:
+      script: check:checkout-session
+      target: scripts/check-checkout-session.ts
+    tests:
+      script: test:checkout-session
+      targets: [scripts/check-checkout-session.test.ts]
+    external_probe: null
+```
+
+Binding 必须是 `.nimi/config/**` 下一个 tracked、stage-zero regular file；可选 result 必须是 `.nimi/local/**` 下的 regular file。Repository 必须具有可解析的 committed `HEAD`，它只在 capture 开始时作为 context 固定；所有 locator 都拒绝 symlink、path escape 与任意大小写形式的 `.git` path segment。Built-in probe 只静态精确匹配 `node --import tsx <target>` 与 `pnpm exec vitest run <targets...>` script shape，绝不执行 command 或 test。Authority、binding 与 declared repository inputs 分别获得独立 deterministic identity；可选 `--probe-results` 文件只作为绑定这些 identity 的 external supplied observation 被接收，并始终标记 `packageAttestation: false`。产品显式返回预算中的每一个 locator 和 evidence edge，并分别返回 canonical unit/scope 的 SourceMap location。Target reachable 只证明已声明 package-script target path 可达，不证明 runtime/API reachability、test 已执行或成功、implementation behavior 或 authority conformance。因此所有 completed product 均报告 `conformanceStatus: not_evaluated`；invalid input、capture race 或 budget overflow 不返回 partial evidence。
 
 ## Projection lifecycle
 
@@ -93,4 +117,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-Graph navigation、deterministic audit 与 Git-aware review 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。Review 不是 Git/PR workflow。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+Graph navigation、deterministic audit、Git-aware review 与 current-worktree evidence 不公开私有 AuthorityIR/SourceMap，不推断 prose relation/predicate，也不提供 detector plugin runtime。Review 不是 Git/PR workflow；evidence 不是 shell、test、plugin 或 conformance runner。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

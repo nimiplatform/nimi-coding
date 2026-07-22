@@ -16,6 +16,7 @@ export function helpText() {
     "nimicoding authority diff <before-path> <after-path> --max-bytes <positive-integer> [--json]",
     "nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]",
     "nimicoding authority review <repository-path> --base <git-ref> --bindings <file> --dispositions <file> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
+    "nimicoding authority evidence <repository-path> --bindings <tracked-.nimi/config-path> [--probe-results <.nimi/local-path>] --max-units <positive-safe-integer> --max-bindings <positive-safe-integer> --max-locators <positive-safe-integer> --max-edges <positive-safe-integer> --max-input-bytes <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
     "nimicoding start [--yes]",
     "nimicoding sync [--apply|--check|--dry-run] [--json]",
     "nimicoding clear [--yes]",
