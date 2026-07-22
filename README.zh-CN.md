@@ -30,6 +30,9 @@ pnpm exec nimicoding authority compile .nimi/spec --json
 pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
+pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
+pnpm exec nimicoding authority path .nimi/spec rule.checkout-session definition.session --traversal directed --relations applies_to,supersedes --max-hops 8 --max-units 64 --max-edges 128 --max-bytes 131072 --json
+pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direction outgoing --relations applies_to,supersedes --depth 3 --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 ```
@@ -39,6 +42,8 @@ pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nim
 `discover` 在任务缺少 exact ID 时返回有界、确定的 lexical candidates。它不是 semantic search，不选择 authority、不附加 context、不声称完整召回，零匹配也不证明 authority 不存在。调用者必须依据 task 或 product authority 选择 ID，再显式调用 exact `query` 或 `context`。候选与 byte 边界均为显式边界；失败返回 `discovery: null`，不会为适配 byte budget 暗中减少候选。
 
 `context` 返回 root unit 通过已声明 `applies_to` 与 `supersedes` 关系形成的完整有界 outgoing interpretation closure；它不是完整 task context。预算失败不返回 partial packet。
+
+`refs`、`path` 与 `subgraph` 共享紧凑的 `nimicoding.authority-graph/v1` graph product，包含 node metadata、canonical authored edges、精确 portable source locations、traversal/selection policy、counts 与显式 budgets。Relations 必须是只含 `applies_to` / `supersedes` 的显式非空 unique set。Directed path 只沿 authored direction；incidence path 可包含明确标记的 reverse topology step。Path 先选最少 hops，再做确定性 lexical tie-break。Unknown ID 或 hop/unit/edge/UTF-8 byte budget 不足时 fail closed 并返回 `graph: null`；两个合法但 disconnected 的 ID 返回 complete `found: false`。
 
 `impact` 只报告由已声明关系导出的 review obligations；disposition 文本不能证明 implementation、consumer 或 test 已同步。Diff/impact 预算失败不返回 partial semantic payload。
 
@@ -70,4 +75,4 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local / non-authoritative：** `.nimi/local/**`；
 - **Package-internal：** grammar contracts、私有 AuthorityIR/SourceMap 与 compiler implementation。
 
-SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。
+Graph navigation 不公开私有 AuthorityIR/SourceMap，不推断 prose relation，也不提供 owner/scope/lifecycle discovery filter。SQLite、cache、incremental compilation、embedding、semantic search、visualization、AI execution、Atlas 与历史格式兼容均未 admitted。

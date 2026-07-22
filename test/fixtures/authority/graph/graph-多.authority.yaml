@@ -1,0 +1,94 @@
+format: nimicoding.authority/v1
+units:
+  - id: definition.hub
+    kind: definition
+    owner: team.graph
+    lifecycle: active
+    title: Hub
+    meaning: A shared graph hub.
+    relations: []
+  - id: definition.lineage
+    kind: definition
+    owner: team.graph
+    lifecycle: active
+    title: Current lineage
+    meaning: The current lineage definition.
+    relations:
+      - type: supersedes
+        target: definition.lineage-v1
+  - id: definition.lineage-v1
+    kind: definition
+    owner: team.graph
+    lifecycle: removed
+    title: Prior lineage
+    reason: Replaced by the current lineage definition.
+    relations:
+      - type: supersedes
+        target: definition.lineage-v0
+  - id: definition.lineage-v0
+    kind: definition
+    owner: team.graph
+    lifecycle: removed
+    title: Oldest lineage
+    reason: Replaced by the prior lineage definition.
+    relations: []
+  - id: definition.target
+    kind: definition
+    owner: team.graph
+    lifecycle: active
+    title: Target
+    meaning: A graph target.
+    relations: []
+  - id: definition.unrelated
+    kind: definition
+    owner: team.other
+    lifecycle: active
+    title: Unrelated
+    meaning: An unrelated graph definition.
+    relations: []
+  - id: rule.alpha
+    kind: rule
+    owner: team.graph
+    lifecycle: active
+    title: Alpha route
+    modality: must
+    scope:
+      - graph.alpha
+    statement: The alpha route uses the hub and target.
+    condition: Always.
+    failure: Reject the alpha route.
+    relations:
+      - type: applies_to
+        target: definition.hub
+      - type: applies_to
+        target: definition.target
+  - id: rule.beta
+    kind: rule
+    owner: team.graph
+    lifecycle: active
+    title: Beta route
+    modality: must
+    scope:
+      - graph.beta
+    statement: The beta route uses the hub and target.
+    condition: Always.
+    failure: Reject the beta route.
+    relations:
+      - type: applies_to
+        target: definition.hub
+      - type: applies_to
+        target: definition.target
+  - id: rule.direct
+    kind: rule
+    owner: team.other
+    lifecycle: active
+    title: Direct route
+    modality: must
+    scope:
+      - graph.direct
+    statement: The direct route uses the target.
+    condition: Always.
+    failure: Reject the direct route.
+    relations:
+      - type: applies_to
+        target: definition.target

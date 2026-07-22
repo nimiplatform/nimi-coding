@@ -94,5 +94,5 @@ runtime_authority:
   downstream_projection_cannot_change_compiler: true
   historical_document_compatibility_or_inference: forbidden
   sole_downstream_conformance_gate: authority_check_on_complete_canonical_root
-admitted_downstream_consumers: [bounded_lexical_candidate_discovery, exact_query, bounded_context, semantic_diff, declared_impact]
+admitted_downstream_consumers: [bounded_lexical_candidate_discovery, exact_query, bounded_context, bounded_graph_navigation, semantic_diff, declared_impact]
 not_admitted: [historical_format_reconstruction, profile_specific_validation, multi_unit_markdown, sqlite, cache, incremental, semantic_search, embedding, visualization, ai_execution, Atlas, qualification, final_cutover]

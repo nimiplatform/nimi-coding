@@ -6,6 +6,7 @@
 - Added read-only fail-closed `authority discover` for bounded deterministic lexical candidates over admitted private compiler products; it does not select authority or perform semantic search.
 - Added exact-ID `authority query` and complete fail-closed bounded `authority context` over admitted compiler products.
 - Added byte-bounded compiler-output `authority diff` and explicit-relation `authority impact` with retained tombstones and fail-closed consumer/test dispositions.
+- Added fail-closed `authority refs`, `authority path`, and `authority subgraph` over explicit admitted relations with portable SourceMap locations, deterministic traversal, and hop/unit/edge/UTF-8 byte budgets.
 - Corrected public CLI pipe flushing so large JSON diagnostics and bounded semantic payloads complete before process exit.
 - Hard-cut the legacy reconstruction, taxonomy, table, generation-audit, placement, and spec-governance command plane; `authority check` is now the sole `.nimi/spec` conformance gate.
 - Contracted bootstrap/sync to one exact compact-guide projection plus managed instruction blocks; unrelated host files are ignored and exact deprecated projection paths fail closed.

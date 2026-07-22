@@ -10,6 +10,7 @@ methodology:
       - bounded_deterministic_lexical_candidate_discovery
       - private_compiler_bounded_lexical_discovery_and_exact_query
       - complete_declared_outgoing_interpretation_closure
+      - bounded_explicit_relation_graph_navigation
       - semantic_diff_and_declared_review_obligations
       - optional_L3_repository_governance_checks
     does_not_own:
@@ -29,6 +30,7 @@ methodology:
   boundaries:
     discovery: bounded_lexical_candidates_not_semantic_search_selection_complete_recall_or_absence_proof
     context: complete_declared_outgoing_interpretation_closure_not_complete_task_context
+    graph: bounded_explicit_relation_navigation_not_semantic_inference_or_raw_IR
     impact: declared_review_obligations_not_implementation_consumer_or_test_sync_proof
     authority_admission: nimicoding_authority_check_on_complete_canonical_root
     optional_repository_governance: separate_L3_not_authority_admission

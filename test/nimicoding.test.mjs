@@ -109,7 +109,7 @@ test("public CLI exposes one authority plane and removed commands are unavailabl
     .map((line) => line.trim().split(/\s+/)[1])
     .filter((command) => !command.startsWith("--"));
   assert.deepEqual(retained, [
-    "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority",
+    "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority",
     "start", "sync", "clear", "doctor", "validate-ai-governance",
   ]);
 

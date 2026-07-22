@@ -1,0 +1,59 @@
+version: 1
+spec:
+  id: nimicoding.authority-graph.v1
+  owner: nimi-coding
+  status: active
+product_claim: complete_admitted_private_compiler_snapshot_supports_bounded_direct_refs_exact_path_and_local_subgraph
+source: one_complete_package_private_AuthorityIR_and_SourceMap_compile_per_command
+commands:
+  refs: nimicoding authority refs <path> <id> --direction <incoming|outgoing|both> --relations <closed-set> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+  path: nimicoding authority path <path> <from-id> <to-id> --traversal <directed|incidence> --relations <closed-set> --max-hops <positive-safe-integer> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+  subgraph: nimicoding authority subgraph <path> <id> --direction <incoming|outgoing|both> --relations <closed-set> --depth <positive-safe-integer> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+relations:
+  admitted: [applies_to, supersedes]
+  request: explicit_non_empty_unique_closed_set
+  defaults_or_all_alias: forbidden
+product:
+  format: nimicoding.authority-graph/v1
+  shared_fields: [format, operation, query, complete, nodes, edges, policy, counts, budgets]
+  path_fields: [found, steps]
+  node_fields: [id, kind, owner, lifecycle, scope, location]
+  definition_or_removed_scope: []
+  edge_fields: [source, type, target, sourceLocation, relationLocation, targetLocation]
+  location_fields: [file, range, sourcePointer]
+  semantic_prose_or_raw_AuthorityIR: excluded
+ordering:
+  nodes: lexical_ID
+  edges: [source, type, target]
+  comparator: portable_lexical_comparator
+traversal:
+  refs: direct_only_with_each_authored_edge_once
+  path_directed: authored_source_to_target_only
+  path_incidence: forward_or_reverse_steps_while_edges_remain_canonical_authored_source_to_target
+  reverse_step_claim: topology_incidence_only_not_semantic_dependency
+  path_selection: minimum_hops_then_lexical_minimum_complete_step_tuple_sequence
+  path_step_tuple: [relation_type, traversal, authored_source, authored_target]
+  subgraph: deterministic_cycle_safe_BFS_returning_complete_selected_graph_within_depth
+budgets:
+  required_all: [max_units, max_edges, max_bytes]
+  path_also_requires: max_hops
+  subgraph_also_requires: depth
+  units_and_edges: constrain_complete_traversal_proof_not_only_returned_witness
+  bytes: UTF-8_bytes_of_compact_JSON.stringify_graph
+  overflow: AUTH_GRAPH_BUDGET_with_null_graph_and_partial_false
+outcomes:
+  completed: includes_complete_no_path_with_found_false
+  usage_error: invalid_or_missing_CLI_arguments_exit_2_without_graph_product
+  refused: parsed_invocation_with_invalid_corpus_unknown_ID_or_insufficient_budget
+  failed: IO_resource_or_internal_failure
+  unknown_ID: AUTH_QUERY_NOT_FOUND
+  partial_or_truncated_graph: forbidden
+locations:
+  paths: input_root_relative_portable_paths_when_inside_input_root
+  semantics: preserve_SourceMap_range_and_sourcePointer
+  relocation: equivalent_relocated_corpus_has_stable_logical_graph_and_relative_locations
+boundaries:
+  read_only: true
+  durable_graph_cache_or_database: none
+  public_JS_exports: none
+  new_grammar_relation_or_inferred_prose_relation: forbidden

@@ -33,6 +33,9 @@ pnpm exec nimicoding authority compile .nimi/spec --json
 pnpm exec nimicoding authority discover .nimi/spec "checkout session" --max-candidates 10 --max-bytes 65536 --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 pnpm exec nimicoding authority context .nimi/spec rule.checkout-session --max-units 8 --max-bytes 65536 --json
+pnpm exec nimicoding authority refs .nimi/spec definition.session --direction incoming --relations applies_to --max-units 64 --max-edges 64 --max-bytes 131072 --json
+pnpm exec nimicoding authority path .nimi/spec rule.checkout-session definition.session --traversal directed --relations applies_to,supersedes --max-hops 8 --max-units 64 --max-edges 128 --max-bytes 131072 --json
+pnpm exec nimicoding authority subgraph .nimi/spec rule.checkout-session --direction outgoing --relations applies_to,supersedes --depth 3 --max-units 64 --max-edges 128 --max-bytes 262144 --json
 pnpm exec nimicoding authority diff before/spec after/spec --max-bytes 262144 --json
 pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nimi/local/authority-impact-dispositions.yaml --max-bytes 262144 --json
 ```
@@ -40,6 +43,8 @@ pnpm exec nimicoding authority impact before/spec after/spec --dispositions .nim
 `discover` returns bounded deterministic lexical candidates when a task lacks an exact ID. It does not perform semantic search, select authority, attach context, claim complete recall, or prove absence on zero matches. After choosing an ID from task or product authority, call exact `query` or `context`. Candidate and byte bounds are explicit; failures return `discovery: null` and never silently remove candidates to fit bytes.
 
 `context` returns the complete bounded closure of the root unit's declared outgoing `applies_to` and `supersedes` relations. It is an interpretation closure, not complete task context. Budget failure returns no partial packet.
+
+`refs`, `path`, and `subgraph` return `nimicoding.authority-graph/v1`, a compact graph product containing node metadata, canonical authored edges, exact portable source locations, traversal/selection policy, counts, and explicit budgets. Relations are an explicit non-empty unique set limited to `applies_to` and `supersedes`. Directed paths follow authored direction; incidence paths may include clearly marked reverse topology steps. Paths are shortest-hop with a deterministic lexical tie-break. Unknown IDs and insufficient hop/unit/edge/UTF-8 byte budgets fail closed with `graph: null`; disconnected known IDs return a complete `found: false` path result.
 
 `impact` reports review obligations derived from declared relations. Disposition text does not prove that implementation, consumers, or tests are synchronized. Diff/impact budget failure returns no partial semantic payload.
 
@@ -73,7 +78,7 @@ pnpm exec nimicoding validate-ai-governance --profile my-project --scope agents-
 - **Local/non-authoritative:** `.nimi/local/**`.
 - **Package-internal:** grammar contracts, private AuthorityIR/SourceMap, and compiler implementation.
 
-SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
+Graph navigation does not export private AuthorityIR/SourceMap, infer prose relations, or provide owner/scope/lifecycle discovery filters. SQLite, cache, incremental compilation, embeddings, semantic search, visualization, AI execution, Atlas, and historical-format compatibility are not admitted.
 
 ## Development
 

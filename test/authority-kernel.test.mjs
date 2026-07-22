@@ -745,6 +745,73 @@ test("packed package runs the full chain and projections cannot alter compiler s
   const packedContext = await runExecutable(bin, ["authority", "context", corpus, "rule.checkout-session", "--max-units", "5", "--max-bytes", "65536", "--json"], consumer);
   assert.equal(packedContext.code, 0);
   assert.equal(JSON.parse(packedContext.stdout).packet.units.length, 5);
+
+  const graphArgs = ["--relations", "applies_to,supersedes", "--max-units", "20", "--max-edges", "20", "--max-bytes", "200000", "--json"];
+  const packedRefs = await runExecutable(bin, ["authority", "refs", corpus, "definition.session", "--direction", "incoming", ...graphArgs], consumer);
+  assert.equal(packedRefs.code, 0, packedRefs.stderr);
+  const packedRefsGraph = JSON.parse(packedRefs.stdout).graph;
+  assert.deepEqual(packedRefsGraph.edges.map((edge) => edge.source), ["rule.checkout-no-anonymous", "rule.checkout-session"]);
+  assert(packedRefsGraph.edges.every((edge) => !path.isAbsolute(edge.relationLocation.file) && edge.relationLocation.sourcePointer.includes("/relations/")));
+  const packedDirectPath = await runExecutable(bin, ["authority", "path", corpus, "rule.checkout-session", "definition.session", "--traversal", "directed", "--max-hops", "3", ...graphArgs], consumer);
+  assert.equal(packedDirectPath.code, 0);
+  assert.equal(JSON.parse(packedDirectPath.stdout).graph.steps[0].traversal, "forward");
+  const packedIncidencePath = await runExecutable(bin, ["authority", "path", corpus, "definition.session", "rule.checkout-no-anonymous", "--traversal", "incidence", "--max-hops", "3", ...graphArgs], consumer);
+  assert.equal(packedIncidencePath.code, 0);
+  assert.equal(JSON.parse(packedIncidencePath.stdout).graph.steps[0].traversal, "reverse");
+  const packedLineagePath = await runExecutable(bin, ["authority", "path", corpus, "rule.checkout-session", "rule.checkout-session-v00", "--traversal", "directed", "--max-hops", "3", ...graphArgs], consumer);
+  assert.equal(packedLineagePath.code, 0);
+  assert.equal(JSON.parse(packedLineagePath.stdout).graph.steps.length, 2);
+  const packedNoPath = await runExecutable(bin, ["authority", "path", corpus, "definition.session", "rule.checkout-no-anonymous", "--traversal", "directed", "--max-hops", "3", ...graphArgs], consumer);
+  assert.equal(packedNoPath.code, 0);
+  assert.equal(JSON.parse(packedNoPath.stdout).graph.found, false);
+  const packedPathBudget = await runExecutable(bin, ["authority", "path", corpus, "rule.checkout-session", "rule.checkout-session-v00", "--traversal", "directed", "--max-hops", "1", ...graphArgs], consumer);
+  assert.equal(packedPathBudget.code, 1);
+  assert.equal(JSON.parse(packedPathBudget.stdout).graph, null);
+  assert.equal(JSON.parse(packedPathBudget.stdout).diagnostics[0].code, "AUTH_GRAPH_BUDGET");
+  const packedSubgraph = await runExecutable(bin, ["authority", "subgraph", corpus, "rule.checkout-session", "--direction", "outgoing", "--depth", "3", ...graphArgs], consumer);
+  assert.equal(packedSubgraph.code, 0);
+  assert.equal(JSON.parse(packedSubgraph.stdout).graph.nodes.length, 5);
+  const packedSubgraphBudget = await runExecutable(bin, ["authority", "subgraph", corpus, "rule.checkout-session", "--direction", "outgoing", "--depth", "3", "--relations", "applies_to,supersedes", "--max-units", "4", "--max-edges", "20", "--max-bytes", "200000", "--json"], consumer);
+  assert.equal(packedSubgraphBudget.code, 1);
+  assert.equal(JSON.parse(packedSubgraphBudget.stdout).graph, null);
+
+  const largeGraphCorpus = path.join(consumer, "authority-large-graph");
+  await mkdir(largeGraphCorpus);
+  const largeGraphUnits = [
+    "  - id: definition.large-graph",
+    "    kind: definition",
+    "    owner: team.large",
+    "    lifecycle: active",
+    "    title: 多字节 graph target",
+    "    meaning: A target with many direct authored references.",
+    "    relations: []",
+  ];
+  for (let index = 0; index < 180; index += 1) {
+    const suffix = String(index).padStart(3, "0");
+    largeGraphUnits.push(
+      `  - id: rule.large-graph-${suffix}`,
+      "    kind: rule",
+      "    owner: team.large",
+      "    lifecycle: active",
+      `    title: Large graph rule ${suffix}`,
+      "    modality: must",
+      "    scope:",
+      "      - graph.large",
+      `    statement: Large graph rule ${suffix} references the target.`,
+      "    condition: Always.",
+      "    failure: Reject the request.",
+      "    relations:",
+      "      - type: applies_to",
+      "        target: definition.large-graph",
+    );
+  }
+  await writeFile(path.join(largeGraphCorpus, "graph-多.authority.yaml"), ["format: nimicoding.authority/v1", "units:", ...largeGraphUnits, ""].join("\n"), "utf8");
+  assert.equal((await runExecutable(bin, ["authority", "fmt", path.join(largeGraphCorpus, "graph-多.authority.yaml"), "--check", "--json"], consumer)).code, 0);
+  const largeGraphOutput = await runExecutable(bin, ["authority", "refs", largeGraphCorpus, "definition.large-graph", "--direction", "incoming", "--relations", "applies_to", "--max-units", "181", "--max-edges", "180", "--max-bytes", "2000000", "--json"], consumer);
+  assert.equal(largeGraphOutput.code, 0, largeGraphOutput.stderr);
+  assert(Buffer.byteLength(largeGraphOutput.stdout, "utf8") > 65536);
+  assert.equal(JSON.parse(largeGraphOutput.stdout).graph.edges.length, 180);
+
   const packedOverflow = await runExecutable(bin, ["authority", "context", corpus, "rule.checkout-session", "--max-units", "4", "--max-bytes", "65536", "--json"], consumer);
   assert.equal(packedOverflow.code, 1);
   assert.equal(JSON.parse(packedOverflow.stdout).packet, null);
@@ -814,6 +881,7 @@ test("packed package runs the full chain and projections cannot alter compiler s
   await writeFile(guide, "version: tampered\n", "utf8");
   assert.equal((await runExecutable(bin, ["authority", "compile", corpus, "--json"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "context", corpus, "rule.checkout-session", "--max-units", "5", "--max-bytes", "65536", "--json"], consumer)).code, 0);
+  assert.equal((await runExecutable(bin, ["authority", "refs", corpus, "definition.session", "--direction", "incoming", ...graphArgs], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["authority", "impact", corpus, impactAfter, "--dispositions", packedDispositions, "--max-bytes", "65536", "--json"], consumer)).code, 0);
   assert.equal((await runExecutable(bin, ["sync", "--check", "--json"], consumer)).code, 1);
 
@@ -824,6 +892,12 @@ test("packed package runs the full chain and projections cannot alter compiler s
     assert.equal(rejected.code, 1);
     assert.match(rejected.stdout, /AUTH_DUPLICATE_KEY/);
   }
+  const packedInvalidGraph = await runExecutable(bin, ["authority", "refs", packedInvalid, "definition.session", "--direction", "incoming", ...graphArgs], consumer);
+  assert.equal(packedInvalidGraph.code, 1);
+  const packedInvalidGraphReport = JSON.parse(packedInvalidGraph.stdout);
+  assert.equal(packedInvalidGraphReport.graph, null);
+  assert.equal(packedInvalidGraphReport.partial, false);
+  assert.equal(packedInvalidGraphReport.diagnostics[0].code, "AUTH_DUPLICATE_KEY");
 
   const unicodeCorpus = await copyCorpus(consumer, "yaml", "authority-unicode");
   const unicodeDefinition = path.join(unicodeCorpus, "session.authority.yaml");
