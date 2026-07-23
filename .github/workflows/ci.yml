@@ -16,7 +16,13 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -42,8 +48,4 @@ jobs:
         run: pnpm check:pack
 
       - name: CLI smoke
-        run: |
-          set -euo pipefail
-          test -n "$(node ./bin/nimicoding.mjs --version)"
-          node ./bin/nimicoding.mjs --help >/tmp/nimicoding-help.txt
-          test -s /tmp/nimicoding-help.txt
+        run: node ./cli/dev/run-cli-smoke.mjs

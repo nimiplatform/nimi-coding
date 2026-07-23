@@ -13,6 +13,7 @@ import { reviewAuthorityRepository } from "../cli/lib/authority/review.mjs";
 import { withGitAuthoritySnapshots } from "../cli/lib/authority/git-snapshot.mjs";
 import { stringifyCanonicalMarkdown } from "../cli/lib/authority/source-markdown.mjs";
 import { stringifyCanonicalYaml } from "../cli/lib/authority/source-yaml.mjs";
+import { portableTestCommand } from "./helpers/portable-exec.mjs";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,8 +29,9 @@ async function temporaryRoot(prefix = "nimicoding-review-") {
 }
 
 async function run(executable, args, cwd, environment = {}) {
+  const command = portableTestCommand(executable, args);
   try {
-    const result = await execFileAsync(executable, args, {
+    const result = await execFileAsync(command.executable, command.args, {
       cwd,
       env: { ...process.env, NIMICODING_LANG: "en", NO_COLOR: "1", ...environment },
       maxBuffer: 32 * 1024 * 1024,
@@ -407,7 +409,10 @@ test("caller-controlled temporary roots inside the repository are refused before
     const unsafe = path.join(state.root, ...suffix);
     await mkdir(unsafe, { recursive: true });
     const before = (await readdir(unsafe)).sort();
-    const output = await run(process.execPath, [cliPath, ...reviewArgs(state), "--json"], state.root, { TMPDIR: unsafe });
+    const temporaryEnvironment = process.platform === "win32"
+      ? { TEMP: unsafe, TMP: unsafe }
+      : { TMPDIR: unsafe };
+    const output = await run(process.execPath, [cliPath, ...reviewArgs(state), "--json"], state.root, temporaryEnvironment);
     assert.equal(output.code, 1, output.stderr || output.stdout);
     const report = JSON.parse(output.stdout);
     assert.equal(report.review, null);

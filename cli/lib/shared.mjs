@@ -1,8 +1,11 @@
 export {
+  appendGitattributesEntries,
   appendGitignoreEntries,
   hasExactGitignoreRule,
+  hasExactTextLine,
   ManagedPathError,
   ManagedTextError,
+  normalizeTextToLf,
   pathExists,
   preflightManagedProjectPaths,
   readTextIfFile,

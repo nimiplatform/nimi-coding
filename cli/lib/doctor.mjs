@@ -38,6 +38,14 @@ export async function inspectDoctorState(projectRoot) {
         : "canonical authority has not been authored; the project owns all product semantics under .nimi/spec",
     ),
   ];
+  if (process.platform === "win32") {
+    checks.push(check(
+      "snapshot_no_follow_capability",
+      false,
+      "info",
+      "win32 does not expose O_NOFOLLOW/O_DIRECTORY; snapshot no-follow hardening is downgraded to surrounding lstat/realpath validation",
+    ));
+  }
   const seedEntries = await getBootstrapSeedEntries();
   return {
     ok: checks.every((entry) => entry.severity !== "error"),

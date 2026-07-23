@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { canonicalEvidenceBytes, evidenceAuthorityRepository, parseEvidenceBindings } from "../cli/lib/authority/evidence.mjs";
+import { portableTestCommand } from "./helpers/portable-exec.mjs";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,8 +60,9 @@ async function temporaryRoot(prefix = "nimicoding-evidence-") {
 }
 
 async function run(executable, args, cwd) {
+  const command = portableTestCommand(executable, args);
   try {
-    const result = await execFileAsync(executable, args, {
+    const result = await execFileAsync(command.executable, command.args, {
       cwd,
       env: { ...process.env, NIMICODING_LANG: "en", NO_COLOR: "1" },
       maxBuffer: 32 * 1024 * 1024,

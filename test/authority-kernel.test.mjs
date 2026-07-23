@@ -13,6 +13,7 @@ import { compileAuthorityPath } from "../cli/lib/authority/compile.mjs";
 import { parseAuthorityPath } from "../cli/lib/authority/format.mjs";
 import { collectIrLeaves } from "../cli/lib/authority/source-map.mjs";
 import { stringifyCanonicalYaml } from "../cli/lib/authority/source-yaml.mjs";
+import { portableTestCommand } from "./helpers/portable-exec.mjs";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,8 +28,9 @@ async function temporaryProject() {
 }
 
 async function runExecutable(executable, args, cwd) {
+  const command = portableTestCommand(executable, args);
   try {
-    const result = await execFileAsync(executable, args, {
+    const result = await execFileAsync(command.executable, command.args, {
       cwd,
       env: { ...process.env, NIMICODING_LANG: "en", NO_COLOR: "1" },
       maxBuffer: 16 * 1024 * 1024,
@@ -512,7 +514,7 @@ test("the compact projected guide preserves required decisions and provides an e
   assert.doesNotMatch(exerciseDiagnostic.repair, /Reject the request/);
 });
 
-test("packed package runs the full chain and projections cannot alter compiler semantics", async () => {
+test("packed package runs the full chain, LF-normalizes CRLF projection sources, and isolates compiler semantics", async () => {
   const root = await temporaryProject();
   const packDir = path.join(root, "pack");
   const consumer = path.join(root, "consumer");
@@ -526,6 +528,33 @@ test("packed package runs the full chain and projections cannot alter compiler s
   const installed = await runExecutable("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], consumer);
   assert.equal(installed.code, 0, installed.stderr || installed.stdout);
   const bin = path.join(consumer, "node_modules", ".bin", "nimicoding");
+  const installedSourceGuide = path.join(
+    consumer,
+    "node_modules",
+    "@nimiplatform",
+    "nimi-coding",
+    "methodology",
+    "authority-authoring.yaml",
+  );
+  const canonicalSourceGuide = await readFile(installedSourceGuide);
+  assert.equal(canonicalSourceGuide.includes(13), false);
+  await writeFile(
+    installedSourceGuide,
+    Buffer.from(canonicalSourceGuide.toString("utf8").replace(/\n/gu, "\r\n"), "utf8"),
+  );
+  assert.equal((await readFile(installedSourceGuide)).includes(13), true);
+  const crlfProjection = path.join(root, "packed-crlf-projection");
+  await mkdir(crlfProjection);
+  const crlfStart = await runExecutable(bin, ["start", "--yes"], crlfProjection);
+  assert.equal(crlfStart.code, 0, crlfStart.stderr || crlfStart.stdout);
+  const projectedGuidePath = path.join(crlfProjection, ".nimi", "methodology", "authority-authoring.yaml");
+  assert.deepEqual(await readFile(projectedGuidePath), canonicalSourceGuide);
+  await writeFile(projectedGuidePath, "drifted\r\nprojection\r\n", "utf8");
+  const crlfSync = await runExecutable(bin, ["sync", "--apply", "--json"], crlfProjection);
+  assert.equal(crlfSync.code, 0, crlfSync.stderr || crlfSync.stdout);
+  const syncedGuide = await readFile(projectedGuidePath);
+  assert.equal(syncedGuide.includes(13), false);
+  assert.deepEqual(syncedGuide, canonicalSourceGuide);
 
   const attackSentinel = path.join(root, "packed-attack-sentinel.bin");
   const sentinelBytes = Buffer.from("packed\u0000attack\n", "utf8");

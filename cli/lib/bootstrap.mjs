@@ -2,11 +2,21 @@ import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises
 import path from "node:path";
 
 import {
+  AUTHORITY_GITATTRIBUTES_ENTRIES,
   LOCAL_GITIGNORE_ENTRIES,
   REQUIRED_LOCAL_DIRS,
 } from "../constants.mjs";
 import { createBootstrapSeedFileMap } from "../seeds/bootstrap.mjs";
-import { appendGitignoreEntries, hasExactGitignoreRule, pathExists, preflightManagedProjectPaths, readUtf8FileFatal } from "./fs-helpers.mjs";
+import {
+  appendGitattributesEntries,
+  appendGitignoreEntries,
+  hasExactGitignoreRule,
+  hasExactTextLine,
+  normalizeTextToLf,
+  pathExists,
+  preflightManagedProjectPaths,
+  readUtf8FileFatal,
+} from "./fs-helpers.mjs";
 
 export async function previewBootstrapWrites(projectRoot) {
   await preflightManagedProjectPaths(projectRoot);
@@ -27,7 +37,7 @@ export async function previewBootstrapWrites(projectRoot) {
     const absolutePath = path.join(projectRoot, relativePath);
     const info = await pathExists(absolutePath);
     if (!info) missingFiles.push(relativePath);
-    else if (info.isFile() && await readFile(absolutePath, "utf8") !== content) driftedFiles.push(relativePath);
+    else if (info.isFile() && await readFile(absolutePath, "utf8") !== normalizeTextToLf(content)) driftedFiles.push(relativePath);
   }
 
   const gitignoreInfo = await pathExists(path.join(projectRoot, ".gitignore"));
@@ -37,13 +47,25 @@ export async function previewBootstrapWrites(projectRoot) {
   const missingGitignoreEntries = gitignoreText === null
     ? LOCAL_GITIGNORE_ENTRIES.slice()
     : LOCAL_GITIGNORE_ENTRIES.filter((entry) => !hasExactGitignoreRule(gitignoreText, entry));
+  const gitattributesInfo = await pathExists(path.join(projectRoot, ".gitattributes"));
+  const gitattributesText = gitattributesInfo?.isFile()
+    ? await readUtf8FileFatal(path.join(projectRoot, ".gitattributes"), ".gitattributes")
+    : null;
+  const missingGitattributesEntries = gitattributesText === null
+    ? AUTHORITY_GITATTRIBUTES_ENTRIES.slice()
+    : AUTHORITY_GITATTRIBUTES_ENTRIES.filter((entry) => !hasExactTextLine(gitattributesText, entry));
 
   return {
     missingFiles,
     driftedFiles,
     missingDirs,
     missingGitignoreEntries,
-    hasWork: missingFiles.length > 0 || driftedFiles.length > 0 || missingDirs.length > 0 || missingGitignoreEntries.length > 0,
+    missingGitattributesEntries,
+    hasWork: missingFiles.length > 0
+      || driftedFiles.length > 0
+      || missingDirs.length > 0
+      || missingGitignoreEntries.length > 0
+      || missingGitattributesEntries.length > 0,
   };
 }
 
@@ -65,17 +87,18 @@ export async function writeMissingBootstrapFiles(projectRoot) {
 
   for (const [relativePath, content] of seedMap.entries()) {
     const absolutePath = path.join(projectRoot, relativePath);
+    const projectionContent = normalizeTextToLf(content);
     const info = await pathExists(absolutePath);
     if (info?.isFile()) {
-      if (await readFile(absolutePath, "utf8") !== content) {
-        await writeFile(absolutePath, content, "utf8");
+      if (await readFile(absolutePath, "utf8") !== projectionContent) {
+        await writeFile(absolutePath, projectionContent, "utf8");
         updatedFiles.push(relativePath);
       }
       continue;
     }
 
     await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, content, "utf8");
+    await writeFile(absolutePath, projectionContent, "utf8");
     createdFiles.push(relativePath);
   }
 
@@ -83,12 +106,17 @@ export async function writeMissingBootstrapFiles(projectRoot) {
     path.join(projectRoot, ".gitignore"),
     LOCAL_GITIGNORE_ENTRIES,
   );
+  const gitattributesUpdated = await appendGitattributesEntries(
+    path.join(projectRoot, ".gitattributes"),
+    AUTHORITY_GITATTRIBUTES_ENTRIES,
+  );
 
   return {
     createdFiles,
     updatedFiles,
     createdDirs,
     gitignoreUpdated,
+    gitattributesUpdated,
   };
 }
 
@@ -116,7 +144,7 @@ async function collectBootstrapRemovalState(projectRoot) {
     }
 
     const actual = await readFile(absolutePath, "utf8");
-    if (actual === content) {
+    if (actual === normalizeTextToLf(content)) {
       removableFiles.push(relativePath);
     } else {
       preservedModifiedFiles.push(relativePath);

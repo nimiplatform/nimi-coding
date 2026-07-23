@@ -6,8 +6,9 @@ const SHARED_INODE_FORBIDDEN_PATHS = new Set([
   "AGENTS.md",
   "CLAUDE.md",
   ".gitignore",
+  ".gitattributes",
 ]);
-const FATAL_UTF8_HOST_PATHS = new Set(["AGENTS.md", "CLAUDE.md", ".gitignore"]);
+const FATAL_UTF8_HOST_PATHS = new Set(["AGENTS.md", "CLAUDE.md", ".gitignore", ".gitattributes"]);
 
 const BASE_MANAGED_PATHS = [
   [".nimi", "directory"],
@@ -21,6 +22,7 @@ const BASE_MANAGED_PATHS = [
   ["AGENTS.md", "file"],
   ["CLAUDE.md", "file"],
   [".gitignore", "file"],
+  [".gitattributes", "file"],
 ];
 
 export class ManagedPathError extends Error {
@@ -109,6 +111,20 @@ export async function readTextIfFile(filePath) {
   return readFile(filePath, "utf8");
 }
 
+export function normalizeTextToLf(text) {
+  return String(text).replace(/\r\n?/gu, "\n");
+}
+
+function exactTextLines(text) {
+  return String(text ?? "")
+    .split(/\n/u)
+    .map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+}
+
+export function hasExactTextLine(text, entry) {
+  return exactTextLines(text).includes(entry);
+}
+
 function effectiveGitignoreRuleLines(text) {
   return String(text ?? "")
     .split(/\n/u)
@@ -127,5 +143,15 @@ export async function appendGitignoreEntries(gitignorePath, entries) {
   if (missing.length === 0) return false;
   const prefix = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
   await writeFile(gitignorePath, `${existing}${prefix}${missing.join("\n")}\n`, "utf8");
+  return true;
+}
+
+export async function appendGitattributesEntries(gitattributesPath, entries) {
+  const existingInfo = await pathExists(gitattributesPath);
+  const existing = existingInfo?.isFile() ? await readUtf8FileFatal(gitattributesPath, ".gitattributes") : "";
+  const missing = entries.filter((entry) => !hasExactTextLine(existing, entry));
+  if (missing.length === 0) return false;
+  const prefix = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
+  await writeFile(gitattributesPath, `${existing}${prefix}${missing.join("\n")}\n`, "utf8");
   return true;
 }

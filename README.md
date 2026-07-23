@@ -201,6 +201,7 @@ The long-term ceiling is high if Nimi Coding standardizes the authority protocol
 - `audit` evaluates explicitly bound deterministic governance checks; it does not prove that all business rules are non-contradictory.
 - `impact` produces declared review obligations; a disposition does not prove implementation or tests are synchronized.
 - `review` audits the captured current snapshot and does not attribute a current finding to the change unless a future product explicitly compares finding fingerprints.
+- Snapshot no-follow hardening is platform-dependent. On `win32`, Node.js does not expose `O_NOFOLLOW`/`O_DIRECTORY`, so snapshot capture uses surrounding `lstat`/`realpath` validation without descriptor-level no-follow guarantees.
 - `evidence` currently proves only declared package-script target reachability. It executes no command or test; every completed evidence product reports `conformanceStatus: not_evaluated`, while refused input returns no evidence product.
 - Raw AuthorityIR, SourceMap internals, and compiler implementation are package-private. There is currently no public JavaScript API (`exports` is empty).
 - `.nimi/local/**` is derived or local evidence, never product authority.

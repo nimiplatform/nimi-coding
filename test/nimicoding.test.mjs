@@ -15,6 +15,10 @@ const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(packageRoot, "bin", "nimicoding.mjs");
 const validFixture = path.join(packageRoot, "test/fixtures/authority/valid/yaml/session.authority.yaml");
+const authorityGitattributesBytes = Buffer.from(
+  "*.authority.yaml text eol=lf\n*.authority.md text eol=lf\n",
+  "utf8",
+);
 const temporaryRoots = [];
 
 async function temporaryProject() {
@@ -84,7 +88,7 @@ async function assertManagedCommandsRefuse(root, sentinels) {
 }
 
 async function managedBytes(root) {
-  const refs = [".nimi/methodology/authority-authoring.yaml", "AGENTS.md", "CLAUDE.md", ".gitignore"];
+  const refs = [".nimi/methodology/authority-authoring.yaml", "AGENTS.md", "CLAUDE.md", ".gitignore", ".gitattributes"];
   return new Map(await Promise.all(refs.map(async (ref) => [ref, await readFile(path.join(root, ref))])));
 }
 
@@ -161,6 +165,29 @@ test("fresh start installs only the compact guide, managed instructions, and ign
   assert.equal(await exists(path.join(root, ".nimi/contracts")), null);
   assert.equal(await exists(path.join(root, ".nimi/spec")), null);
   assert.match(await readFile(path.join(root, ".gitignore"), "utf8"), /^\.nimi\/local\/$/m);
+  assert.deepEqual(await readFile(path.join(root, ".gitattributes")), authorityGitattributesBytes);
+  assert.equal(report.bootstrap.gitattributesUpdated, true);
+  const repeatedStart = await runCli(root, ["start", "--yes"]);
+  assert.equal(repeatedStart.code, 0, repeatedStart.stderr || repeatedStart.stdout);
+  assert.equal(JSON.parse(repeatedStart.stdout).bootstrap.gitattributesUpdated, false);
+  assert.deepEqual(await readFile(path.join(root, ".gitattributes")), authorityGitattributesBytes);
+
+  const doctor = await runCli(root, ["doctor", "--json"]);
+  assert.equal(doctor.code, 0, doctor.stderr || doctor.stdout);
+  const noFollowCheck = JSON.parse(doctor.stdout).checks.find((entry) => entry.id === "snapshot_no_follow_capability");
+  if (process.platform === "win32") {
+    assert.deepEqual(noFollowCheck, {
+      id: "snapshot_no_follow_capability",
+      ok: false,
+      severity: "info",
+      detail: "win32 does not expose O_NOFOLLOW/O_DIRECTORY; snapshot no-follow hardening is downgraded to surrounding lstat/realpath validation",
+    });
+    const doctorText = await runCli(root, ["doctor"]);
+    assert.equal(doctorText.code, 0, doctorText.stderr || doctorText.stdout);
+    assert.match(doctorText.stdout, /\[info\].*O_NOFOLLOW\/O_DIRECTORY.*lstat\/realpath/);
+  } else {
+    assert.equal(noFollowCheck, undefined);
+  }
 
   for (const ref of ["AGENTS.md", "CLAUDE.md"]) {
     const text = await readFile(path.join(root, ref), "utf8");
@@ -255,7 +282,7 @@ test("sync validates exact owned surfaces, ignores unrelated host files, and dia
 test("all managed commands refuse final-component, parent, and broken symlinks without touching external sentinels", async () => {
   const external = await temporaryProject();
   const sentinels = {};
-  for (const name of ["guide", "agents", "claude", "gitignore", "parent", "broken", "local-conflict"]) {
+  for (const name of ["guide", "agents", "claude", "gitignore", "gitattributes", "parent", "broken", "local-conflict"]) {
     const ref = path.join(external, `${name}.sentinel`);
     await writeFile(ref, Buffer.from(`${name}:\u0000unchanged\n`, "utf8"));
     sentinels[name] = ref;
@@ -266,6 +293,7 @@ test("all managed commands refuse final-component, parent, and broken symlinks w
     ["agents", "AGENTS.md"],
     ["claude", "CLAUDE.md"],
     ["gitignore", ".gitignore"],
+    ["gitattributes", ".gitattributes"],
   ]) {
     const root = await temporaryProject();
     await mkdir(path.dirname(path.join(root, relativePath)), { recursive: true });
@@ -299,7 +327,7 @@ test("all managed commands refuse final-component, parent, and broken symlinks w
   await mkdir(path.join(conflictRoot, ".nimi"));
   await writeFile(path.join(conflictRoot, ".nimi/local"), "ordinary file\n", "utf8");
   await assertManagedCommandsRefuse(conflictRoot, [sentinels["local-conflict"]]);
-  for (const ref of ["AGENTS.md", "CLAUDE.md", ".gitignore", ".nimi/methodology/authority-authoring.yaml"]) {
+  for (const ref of ["AGENTS.md", "CLAUDE.md", ".gitignore", ".gitattributes", ".nimi/methodology/authority-authoring.yaml"]) {
     assert.equal(await exists(path.join(conflictRoot, ref)), null, ref);
   }
 });
@@ -372,7 +400,7 @@ test("pre-existing header-only host entrypoints survive start then clear", async
 });
 
 test("invalid UTF-8 in host-owned text fails every managed command without any mutation", async () => {
-  for (const target of ["AGENTS.md", "CLAUDE.md", ".gitignore"]) {
+  for (const target of ["AGENTS.md", "CLAUDE.md", ".gitignore", ".gitattributes"]) {
     const root = await temporaryProject();
     await bootstrap(root);
     const invalidBytes = Buffer.from([0x68, 0x6f, 0x73, 0x74, 0xc3, 0x28, 0x0a]);
@@ -393,7 +421,7 @@ test("invalid UTF-8 in host-owned text fails every managed command without any m
 });
 
 test("hard-linked managed regular files are refused without changing the external inode", async () => {
-  for (const target of [".nimi/methodology/authority-authoring.yaml", "AGENTS.md", "CLAUDE.md", ".gitignore"]) {
+  for (const target of [".nimi/methodology/authority-authoring.yaml", "AGENTS.md", "CLAUDE.md", ".gitignore", ".gitattributes"]) {
     const root = await temporaryProject();
     const external = await temporaryProject();
     const sentinel = path.join(external, `${path.basename(target)}.sentinel`);
@@ -407,14 +435,24 @@ test("hard-linked managed regular files are refused without changing the externa
   }
 });
 
-test("comment-only gitignore text is not an effective local-ignore rule", async () => {
+test("start uses exact-line checks to extend existing gitattributes and effective-rule checks for gitignore", async () => {
   const root = await temporaryProject();
   const original = "# .nimi/local/\nhost-owned/**\n";
+  const originalAttributes = Buffer.from("# host policy\r\n*.authority.yaml text eol=lf\r\n", "utf8");
   await writeFile(path.join(root, ".gitignore"), original, "utf8");
+  await writeFile(path.join(root, ".gitattributes"), originalAttributes);
   await bootstrap(root);
   const actual = await readFile(path.join(root, ".gitignore"), "utf8");
   assert.equal(actual, `${original}.nimi/local/\n`);
   assert.equal(actual.split("\n").filter((line) => line === ".nimi/local/").length, 1);
+  const expectedAttributes = Buffer.concat([
+    originalAttributes,
+    Buffer.from("*.authority.md text eol=lf\n", "utf8"),
+  ]);
+  assert.deepEqual(await readFile(path.join(root, ".gitattributes")), expectedAttributes);
+  const repeated = await runCli(root, ["start", "--yes"]);
+  assert.equal(repeated.code, 0, repeated.stderr || repeated.stdout);
+  assert.deepEqual(await readFile(path.join(root, ".gitattributes")), expectedAttributes);
 });
 
 test("start appends the local ignore rule after a later negation and git confirms it is effective", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 import { diffAuthorityPaths } from "../cli/lib/authority/diff.mjs";
 import { impactAuthorityPaths } from "../cli/lib/authority/impact.mjs";
 import { stringifyCanonicalYaml } from "../cli/lib/authority/source-yaml.mjs";
+import { createTestSymlink } from "./helpers/portable-exec.mjs";
 
 import YAML from "yaml";
 
@@ -483,12 +484,13 @@ test("impact follows only declared reverse dependencies and requires exact consu
   assert.match(missingResult.diagnostics[0].reason, /not readable/);
 
   const symlinked = path.join(state.root, "symlinked.yaml");
-  await symlink(dispositions, symlinked);
-  const symlinkedResult = await impactAuthorityPaths(state.before, state.after, symlinked);
-  assert.equal(symlinkedResult.ok, false);
-  assert.equal(symlinkedResult.impact, null);
-  assert.equal(symlinkedResult.diagnostics[0].code, "AUTH_IMPACT_DISPOSITION_INVALID");
-  assert.match(symlinkedResult.diagnostics[0].reason, /non-symlink/);
+  if (await createTestSymlink(dispositions, symlinked)) {
+    const symlinkedResult = await impactAuthorityPaths(state.before, state.after, symlinked);
+    assert.equal(symlinkedResult.ok, false);
+    assert.equal(symlinkedResult.impact, null);
+    assert.equal(symlinkedResult.diagnostics[0].code, "AUTH_IMPACT_DISPOSITION_INVALID");
+    assert.match(symlinkedResult.diagnostics[0].reason, /non-symlink/);
+  }
 
   const validText = await readFile(dispositions, "utf8");
   const invalidCases = [

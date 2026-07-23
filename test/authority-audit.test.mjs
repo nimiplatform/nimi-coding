@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -11,6 +11,7 @@ import YAML from "yaml";
 import { auditAuthorityPath, canonicalAuditBytes } from "../cli/lib/authority/audit.mjs";
 import { compileAuthorityPath } from "../cli/lib/authority/compile.mjs";
 import { stringifyCanonicalYaml } from "../cli/lib/authority/source-yaml.mjs";
+import { createTestSymlink } from "./helpers/portable-exec.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(packageRoot, "test", "fixtures", "authority", "audit");
@@ -274,12 +275,13 @@ test("closed binding documents and authority references fail closed with null au
   assert.match(invalidUtf8.diagnostics[0].reason, /not valid UTF-8/);
 
   await rm(state.bindings);
-  await symlink(path.join(fixtureRoot, "bindings.valid.yaml"), state.bindings);
-  const symlinked = await auditAuthorityPath(state.corpus, state.bindings, generousBudgets);
-  assert.equal(symlinked.ok, false);
-  assert.equal(symlinked.audit, null);
-  assert.match(symlinked.diagnostics[0].reason, /non-symlink/);
-  await rm(state.bindings);
+  if (await createTestSymlink(path.join(fixtureRoot, "bindings.valid.yaml"), state.bindings)) {
+    const symlinked = await auditAuthorityPath(state.corpus, state.bindings, generousBudgets);
+    assert.equal(symlinked.ok, false);
+    assert.equal(symlinked.audit, null);
+    assert.match(symlinked.diagnostics[0].reason, /non-symlink/);
+    await rm(state.bindings);
+  }
 
   await writeBinding(state, original);
   const source = await readFile(state.source, "utf8");

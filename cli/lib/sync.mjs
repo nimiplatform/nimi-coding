@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { getBootstrapSeedEntries, loadSeedPolicy } from "../seeds/bootstrap.mjs";
 import { inspectEntrypointIntegration, integrateEntrypoints } from "./entrypoints.mjs";
-import { pathExists, preflightManagedProjectPaths } from "./fs-helpers.mjs";
+import { normalizeTextToLf, pathExists, preflightManagedProjectPaths } from "./fs-helpers.mjs";
 
 export const SYNC_MODE = {
   DRY_RUN: "dry_run",
@@ -25,33 +25,34 @@ const STATUS = {
 
 async function inspectProjection(projectRoot, entry) {
   const absolutePath = path.join(projectRoot, entry.outputRelativePath);
+  const projectionContent = normalizeTextToLf(entry.content);
   const info = await pathExists(absolutePath);
-  if (!info) return { ...entry, absolutePath, state: "missing" };
+  if (!info) return { ...entry, absolutePath, projectionContent, state: "missing" };
   const actual = await readFile(absolutePath);
-  return { ...entry, absolutePath, state: actual.equals(Buffer.from(entry.content, "utf8")) ? "in_sync" : "drifted" };
+  return { ...entry, absolutePath, projectionContent, state: actual.equals(Buffer.from(projectionContent, "utf8")) ? "in_sync" : "drifted" };
 }
 
 function projectionResult(entry, mode, applied = false) {
   if (entry.state === "in_sync") {
-    return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status: STATUS.IN_SYNC, detail: "projection matches package source byte-for-byte" };
+    return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status: STATUS.IN_SYNC, detail: "projection matches LF-normalized package canonical text" };
   }
   if (applied) {
     return {
       outputRelativePath: entry.outputRelativePath,
       ownership: entry.ownership,
       status: entry.state === "missing" ? STATUS.CREATED : STATUS.UPDATED,
-      detail: entry.state === "missing" ? "created exact package-owned projection" : "restored exact package-owned projection",
+      detail: entry.state === "missing" ? "created LF-normalized package-owned projection" : "restored LF-normalized package-owned projection",
     };
   }
   const status = entry.state === "missing"
     ? mode === SYNC_MODE.CHECK ? STATUS.MISSING_PACKAGE_CANONICAL : STATUS.WOULD_CREATE
     : mode === SYNC_MODE.CHECK ? STATUS.DRIFTED_PACKAGE_CANONICAL : STATUS.WOULD_UPDATE;
-  return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status, detail: entry.state === "missing" ? "exact package-owned projection is missing" : "projection diverges from package source" };
+  return { outputRelativePath: entry.outputRelativePath, ownership: entry.ownership, status, detail: entry.state === "missing" ? "LF-normalized package-owned projection is missing" : "projection diverges from LF-normalized package canonical text" };
 }
 
 async function applyProjection(entry) {
   await mkdir(path.dirname(entry.absolutePath), { recursive: true });
-  await writeFile(entry.absolutePath, entry.content, "utf8");
+  await writeFile(entry.absolutePath, normalizeTextToLf(entry.projectionContent ?? entry.content), "utf8");
 }
 
 function managedBlockResult(state, mode, applied = false) {

@@ -201,6 +201,7 @@ Base ref 在开始时只解析一次并固定为 full commit OID。Base `.nimi/s
 - `audit` 执行显式绑定的 deterministic governance check，不证明全部业务规则不存在矛盾。
 - `impact` 生成 declared review obligations；disposition 不证明 implementation 或 tests 已同步。
 - `review` 评价 captured current snapshot；除非未来产品显式比较 finding fingerprints，否则不把 current finding 归因为本次 change。
+- Snapshot no-follow 加固受平台能力限制。在 `win32` 上，Node.js 不提供 `O_NOFOLLOW`/`O_DIRECTORY`，因此 snapshot capture 仅使用外围 `lstat`/`realpath` 校验，不具备 descriptor-level no-follow 保证。
 - `evidence` 当前只证明 declared package-script target reachability。它不执行 command/test；每个 completed evidence product 都报告 `conformanceStatus: not_evaluated`，refused input 则不返回 evidence product。
 - Raw AuthorityIR、SourceMap internals 和 compiler implementation 都是 package-private。当前没有 public JavaScript API（`exports` 为空）。
 - `.nimi/local/**` 是 derived/local evidence，永远不是 product authority。

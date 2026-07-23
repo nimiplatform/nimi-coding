@@ -5,7 +5,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 
 import { analyzeManagedBlockText, ManagedBlockError } from "../cli/lib/entrypoints.mjs";
-import { hasExactGitignoreRule, ManagedPathError, preflightManagedProjectPaths } from "../cli/lib/fs-helpers.mjs";
+import { hasExactGitignoreRule, hasExactTextLine, ManagedPathError, preflightManagedProjectPaths } from "../cli/lib/fs-helpers.mjs";
 
 const roots = [];
 async function temporaryRoot() {
@@ -35,6 +35,8 @@ test("managed block parser admits zero or one ordered pair and rejects malformed
 test("gitignore admission requires one exact effective rule line", () => {
   assert.equal(hasExactGitignoreRule(".nimi/local/\n", ".nimi/local/"), true);
   assert.equal(hasExactGitignoreRule("host-rule\r\n.nimi/local/\r\n", ".nimi/local/"), true);
+  assert.equal(hasExactTextLine("*.authority.yaml text eol=lf\r\nhost text\r\n", "*.authority.yaml text eol=lf"), true);
+  assert.equal(hasExactTextLine("# *.authority.md text eol=lf\n", "*.authority.md text eol=lf"), false);
   for (const text of [
     "# .nimi/local/\n",
     "docs/.nimi/local/notes\n",

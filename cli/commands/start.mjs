@@ -46,7 +46,7 @@ export async function runStart(args) {
     const entrypointPreview = await previewEntrypointIntegration(projectRoot);
     bootstrap = bootstrapPreview.hasWork
       ? await writeMissingBootstrapFiles(projectRoot)
-      : { createdFiles: [], updatedFiles: [], createdDirs: [], gitignoreUpdated: false };
+      : { createdFiles: [], updatedFiles: [], createdDirs: [], gitignoreUpdated: false, gitattributesUpdated: false };
     entrypoints = entrypointPreview.length > 0
       ? await integrateEntrypoints(projectRoot)
       : [];
