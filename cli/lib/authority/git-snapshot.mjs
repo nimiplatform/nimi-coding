@@ -1004,6 +1004,28 @@ export async function withGitEvidenceSnapshot({
   }
 }
 
+export async function listGitTrackedFiles(repositoryPath) {
+  const { repository } = await resolveRepository(repositoryPath);
+  const bytes = await checkedGit(
+    repository,
+    ["ls-files", "--cached", "--full-name", "-z"],
+    "AUTH_REVIEW_GIT_INDEX_INVALID",
+    "Git tracked-file inventory cannot be read",
+  );
+  const files = [];
+  let offset = 0;
+  while (offset < bytes.length) {
+    const end = bytes.indexOf(0, offset);
+    if (end < 0) throw refusal("AUTH_REVIEW_GIT_INDEX_INVALID", "Git tracked-file inventory is not NUL-terminated");
+    if (end === offset) throw refusal("AUTH_REVIEW_GIT_INDEX_INVALID", "Git tracked-file inventory contains an empty path");
+    const file = decodeUtf8(bytes.subarray(offset, end), "Git tracked-file path", "AUTH_REVIEW_GIT_INDEX_INVALID");
+    if (!validateRelativePath(file)) throw refusal("AUTH_REVIEW_GIT_INDEX_INVALID", "Git tracked-file inventory contains an unsafe path");
+    files.push(file);
+    offset = end + 1;
+  }
+  return { repository, files: [...new Set(files)].sort(compareText) };
+}
+
 export async function withGitAuthoritySnapshots({ repositoryPath, baseRef, hooks = null }, callback) {
   const { repository, protectedRoots } = await resolveRepository(repositoryPath);
   const baseOid = await resolveBaseOid(repository, baseRef);

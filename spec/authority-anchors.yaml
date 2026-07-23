@@ -1,0 +1,69 @@
+version: 1
+spec:
+  id: nimicoding.authority-anchors.v1
+  owner: nimi-coding
+  status: active
+product_claim: bounded_static_lexical_anchor_validation_against_one_exact_Git_tracked_file_inventory_and_root_package_scripts
+command: nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+inputs:
+  repository:
+    shape: exact_non_symlink_Git_worktree_root
+    tracked_files: one_complete_git_ls_files_cached_NUL_inventory
+    Git_environment: inherited_Git_overrides_traces_replacements_lazy_fetch_prompts_and_locale_are_sanitized_as_for_authority_snapshots
+    writes_or_execution: forbidden
+  corpus:
+    admission: complete_authority_compile_required
+    units: active_only
+    fields:
+      active_definition: [meaning]
+      active_rule: [statement, condition, failure]
+      removed: []
+  scope_bindings:
+    required: false
+    structural_contract: nimicoding.scope-bindings/v1
+    evaluated_kinds: [path_glob]
+    declaration_only_kinds: [module, command]
+lexical_grammar:
+  token: maximal_non_whitespace_sequence
+  class_A:
+    name: tracked_file_path
+    requirements:
+      - token_contains_at_least_one_forward_slash
+      - token_ends_exactly_with_one_known_lowercase_extension
+    extensions: [mjs, js, ts, tsx, rs, go, yaml, yml, md, json, proto, ps1]
+    resolution: exact_byte_text_membership_in_the_decoded_Git_tracked_file_inventory
+    normalization_or_inference: forbidden
+  class_B:
+    name: root_package_script
+    phrase: pnpm_followed_by_exactly_one_ASCII_space_then_one_maximal_non_whitespace_script_name_token
+    script_name_admission: contains_colon_OR_fully_matches_[a-z][a-z0-9:-]*
+    resolution: exact_own_key_membership_in_repository_root_package.json_scripts
+    execution: forbidden
+scope_path_globs:
+  candidates: complete_Git_tracked_file_inventory
+  matching: whole_repository_relative_path_case_sensitive
+  operators:
+    star: zero_or_more_non_slash_characters
+    question: one_non_slash_character
+    double_star: zero_or_more_characters_including_slash
+    double_star_slash: zero_or_more_complete_path_segments
+  zero_matches: diagnostic_lists_exact_scope_and_glob
+result:
+  summary_fields: [units, anchorsChecked, diagnostics]
+  diagnostic_location: exact_unit_ID_field_SourceMap_range_and_source_pointer
+  anchor_diagnostic_fields: [unitId, field, anchor]
+  scope_diagnostic_fields: [scope, glob]
+  ordering:
+    anchors: [unit_ID, anchor_text, field, class]
+    scope_globs: [scope, glob]
+  unresolved_anchor_or_glob: complete_invalid_product_exit_1
+  human_and_json: required
+budgets:
+  max_units: complete_active_unit_count
+  max_anchors: complete_extracted_anchor_occurrence_count
+  max_bytes: UTF-8_size_of_compact_format_complete_summary_and_diagnostics_product
+  overflow: refused_exit_1_with_required_and_admitted_values
+  N_and_N_minus_1: exact_symmetric_boundary
+  truncation_or_partial_result: forbidden
+usage_failure: missing_repeated_unknown_or_invalid_CLI_argument_exit_2_without_anchor_product
+not_claimed: [semantic_path_inference, module_resolution, command_binding_resolution, command_execution, test_execution, code_conformance]

@@ -1,4 +1,5 @@
 import { VERSION } from "./constants.mjs";
+import { AUTHORITY_ANCHOR_GRAMMAR_HELP } from "./lib/authority/anchors.mjs";
 import { localize, styleCommand, styleHeading, styleMuted } from "./lib/ui.mjs";
 
 export function helpText() {
@@ -6,6 +7,7 @@ export function helpText() {
     "nimicoding authority fmt <file> [--check] [--json]",
     "nimicoding authority check <path> [--scope-bindings <file>] [--json]",
     "nimicoding authority compile <path> [--json]",
+    "nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
     "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
     "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
     "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
@@ -30,6 +32,8 @@ export function helpText() {
     `  ${styleCommand("nimicoding --help")}`,
     `  ${styleCommand("nimicoding --version")}`,
     ...commands.map((command) => `  ${styleCommand(command)}`),
+    "",
+    AUTHORITY_ANCHOR_GRAMMAR_HELP,
     "",
     styleMuted(localize(
       "Nimi Coding provides canonical authority methodology, formatting, compiler primitives, and deterministic gates. The optional L3 repository-governance command is not authority admission. AI task planning and execution belong to the host.",

@@ -158,6 +158,7 @@ async function loadScopeBindings(file) {
     if (!Array.isArray(value.bindings) || value.bindings.length === 0) {
       return { ok: false, diagnostics: [scopeBindingDiagnostic(label, "scope bindings must be a non-empty sequence", parsedLocation(parsed, `${pointer}/bindings`))] };
     }
+    const bindings = [];
     for (let bindingIndex = 0; bindingIndex < value.bindings.length; bindingIndex += 1) {
       const binding = value.bindings[bindingIndex];
       const bindingPointer = `${pointer}/bindings/${bindingIndex}`;
@@ -170,8 +171,13 @@ async function loadScopeBindings(file) {
       if (!validText(binding.value)) {
         return { ok: false, diagnostics: [scopeBindingDiagnostic(label, "scope binding value must be one non-empty text line", parsedLocation(parsed, `${bindingPointer}/value`))] };
       }
+      bindings.push({
+        kind: binding.kind,
+        value: binding.value,
+        location: parsedLocation(parsed, `${bindingPointer}/value`),
+      });
     }
-    scopes.push({ scope: value.scope, location: parsedLocation(parsed, `${pointer}/scope`) });
+    scopes.push({ scope: value.scope, location: parsedLocation(parsed, `${pointer}/scope`), bindings });
   }
   scopes.sort((left, right) => compareText(left.scope, right.scope));
   return { ok: true, diagnostics: [], scopes };
@@ -216,4 +222,4 @@ export async function validateAuthorityScopeBindings(sources, bindingsPath) {
   return { ok: diagnostics.length === 0, diagnostics: sortDiagnostics(diagnostics) };
 }
 
-export { SCOPE_BINDINGS_FORMAT };
+export { loadScopeBindings, SCOPE_BINDINGS_FORMAT };

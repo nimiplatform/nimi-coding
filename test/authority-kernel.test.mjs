@@ -466,6 +466,7 @@ test("the compact projected guide preserves required decisions and provides an e
   assert.match(guide.daily_workflow[1], /authority query <path> <id>/);
   assert.match(guide.daily_workflow[1], /context <path> <id> --max-units/);
   assert.match(guide.daily_workflow.join(" "), /fmt <changed-file>.*check <complete-path>.*compile.*diff and impact/);
+  assert.match(guide.daily_workflow.join(" "), /authority anchors <repository-path> --spec <corpus-path> \[--scope-bindings <file>\] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> --json\./);
   assert.deepEqual(guide.source_profiles.markdown.sections, {
     active_definition: ["Meaning"],
     active_rule: ["Statement", "Condition", "Failure"],

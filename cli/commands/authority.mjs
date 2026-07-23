@@ -1,4 +1,5 @@
 import { VERSION } from "../constants.mjs";
+import { anchorsAuthorityRepository, AUTHORITY_ANCHOR_GRAMMAR_HELP } from "../lib/authority/anchors.mjs";
 import { auditAuthorityPath } from "../lib/authority/audit.mjs";
 import { checkAuthorityPath, compileAuthorityPath } from "../lib/authority/compile.mjs";
 import { diffAuthorityPaths } from "../lib/authority/diff.mjs";
@@ -15,6 +16,7 @@ const USAGE = [
   "nimicoding authority fmt <file> [--check] [--json]",
   "nimicoding authority check <path> [--scope-bindings <file>] [--json]",
   "nimicoding authority compile <path> [--json]",
+  "nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
   "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
   "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
   "nimicoding authority context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> [--json]",
@@ -26,22 +28,25 @@ const USAGE = [
   "nimicoding authority impact <before-path> <after-path> --dispositions <file> --max-bytes <positive-integer> [--json]",
   "nimicoding authority review <repository-path> --base <git-ref> --bindings <file> --dispositions <file> --max-units <positive-safe-integer> --max-edges <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
   "nimicoding authority evidence <repository-path> --bindings <tracked-.nimi/config-path> [--probe-results <.nimi/local-path>] --max-units <positive-safe-integer> --max-bindings <positive-safe-integer> --max-locators <positive-safe-integer> --max-edges <positive-safe-integer> --max-input-bytes <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]",
+  "",
+  AUTHORITY_ANCHOR_GRAMMAR_HELP,
 ].join("\n");
 
 const AUTHORITY_IDENTIFIER = /^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 function parseOptions(subcommand, args) {
-  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, scopeBindings: null, probeResults: null, kind: null, owner: null, scope: null, lifecycle: null, direction: null, previewDirection: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxSnippetTerms: null, maxUnits: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
+  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, spec: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, scopeBindings: null, probeResults: null, kind: null, owner: null, scope: null, lifecycle: null, direction: null, previewDirection: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxSnippetTerms: null, maxUnits: null, maxAnchors: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
   const graphCommands = ["refs", "path", "subgraph"];
   const integerOptions = {
     "--max-candidates": ["maxCandidates", ["discover"]],
     "--max-snippet-terms": ["maxSnippetTerms", ["discover"]],
-    "--max-units": ["maxUnits", ["context", "audit", "review", "evidence", ...graphCommands]],
+    "--max-units": ["maxUnits", ["context", "audit", "review", "evidence", "anchors", ...graphCommands]],
+    "--max-anchors": ["maxAnchors", ["anchors"]],
     "--max-bindings": ["maxBindings", ["evidence"]],
     "--max-locators": ["maxLocators", ["evidence"]],
     "--max-edges": ["maxEdges", ["audit", "review", "evidence", "discover", ...graphCommands]],
     "--max-input-bytes": ["maxInputBytes", ["evidence"]],
-    "--max-bytes": ["maxBytes", ["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", ...graphCommands]],
+    "--max-bytes": ["maxBytes", ["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", "anchors", ...graphCommands]],
     "--max-hops": ["maxHops", ["path"]],
     "--depth": ["depth", ["subgraph"]],
   };
@@ -117,10 +122,15 @@ function parseOptions(subcommand, args) {
         if (!value || value.startsWith("--")) return { ok: false, error: `authority ${subcommand} requires --bindings followed by one file` };
         options.bindings = value;
         index += 1;
-      } else if (arg === "--scope-bindings" && subcommand === "check" && options.scopeBindings === null) {
+      } else if (arg === "--scope-bindings" && ["check", "anchors"].includes(subcommand) && options.scopeBindings === null) {
         const value = args[index + 1];
-        if (!value || value.startsWith("--")) return { ok: false, error: "authority check requires --scope-bindings followed by one file" };
+        if (!value || value.startsWith("--")) return { ok: false, error: `authority ${subcommand} requires --scope-bindings followed by one file` };
         options.scopeBindings = value;
+        index += 1;
+      } else if (arg === "--spec" && subcommand === "anchors" && options.spec === null) {
+        const value = args[index + 1];
+        if (!value || value.startsWith("--")) return { ok: false, error: "authority anchors requires --spec followed by one corpus path" };
+        options.spec = value;
         index += 1;
       } else if (arg === "--probe-results" && subcommand === "evidence" && options.probeResults === null) {
         const value = args[index + 1];
@@ -143,11 +153,11 @@ function parseOptions(subcommand, args) {
       ? "one path and one query"
       : ["diff", "impact"].includes(subcommand)
         ? "one before path and one after path"
-        : subcommand === "path" ? "one path, one exact from ID, and one exact to ID" : ["review", "evidence"].includes(subcommand) ? "one repository path" : expected === 1 ? "one path" : "one path and one exact ID";
+        : subcommand === "path" ? "one path, one exact from ID, and one exact to ID" : ["review", "evidence", "anchors"].includes(subcommand) ? "one repository path" : expected === 1 ? "one path" : "one path and one exact ID";
     return { ok: false, error: `authority ${subcommand} requires exactly ${requirement}` };
   }
   if (["diff", "impact"].includes(subcommand)) [options.beforePath, options.afterPath] = positionals;
-  else if (["review", "evidence"].includes(subcommand)) [options.repositoryPath] = positionals;
+  else if (["review", "evidence", "anchors"].includes(subcommand)) [options.repositoryPath] = positionals;
   else if (subcommand === "path") [options.path, options.fromId, options.toId] = positionals;
   else [options.path, options.id] = positionals;
   if (subcommand === "discover") {
@@ -161,9 +171,9 @@ function parseOptions(subcommand, args) {
     const provided = previewOptions.filter((value) => value !== null).length;
     if (provided !== 0 && provided !== previewOptions.length) return { ok: false, error: "authority discover requires --preview-direction, --relations, and --max-edges together" };
   }
-  if (["context", ...graphCommands].includes(subcommand) && options.maxUnits === null) return { ok: false, error: `authority ${subcommand} requires --max-units followed by a positive integer` };
+  if (["context", "anchors", ...graphCommands].includes(subcommand) && options.maxUnits === null) return { ok: false, error: `authority ${subcommand} requires --max-units followed by a positive integer` };
   if (graphCommands.includes(subcommand) && options.maxEdges === null) return { ok: false, error: `authority ${subcommand} requires --max-edges followed by a positive integer` };
-  if (["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", ...graphCommands].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
+  if (["discover", "query", "context", "audit", "diff", "impact", "review", "evidence", "anchors", ...graphCommands].includes(subcommand) && options.maxBytes === null) return { ok: false, error: `authority ${subcommand} requires --max-bytes followed by a positive integer` };
   if (["refs", "subgraph"].includes(subcommand) && options.direction === null) return { ok: false, error: `authority ${subcommand} requires --direction` };
   if (subcommand === "path" && options.traversal === null) return { ok: false, error: "authority path requires --traversal" };
   if (graphCommands.includes(subcommand) && options.relations === null) return { ok: false, error: `authority ${subcommand} requires --relations` };
@@ -184,6 +194,8 @@ function parseOptions(subcommand, args) {
   if (subcommand === "evidence" && options.maxLocators === null) return { ok: false, error: "authority evidence requires --max-locators followed by a positive integer" };
   if (subcommand === "evidence" && options.maxEdges === null) return { ok: false, error: "authority evidence requires --max-edges followed by a positive integer" };
   if (subcommand === "evidence" && options.maxInputBytes === null) return { ok: false, error: "authority evidence requires --max-input-bytes followed by a positive integer" };
+  if (subcommand === "anchors" && options.spec === null) return { ok: false, error: "authority anchors requires --spec followed by one corpus path" };
+  if (subcommand === "anchors" && options.maxAnchors === null) return { ok: false, error: "authority anchors requires --max-anchors followed by a positive integer" };
   return { ok: true, options };
 }
 
@@ -315,6 +327,17 @@ function outputEvidenceReport(report, json) {
   else process.stdout.write(formatEvidenceHuman(report));
 }
 
+function outputAnchorsReport(report, json) {
+  if (json) {
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`nimicoding authority anchors: ${report.semantic_status}; complete=${report.complete}\n`);
+  process.stdout.write(`units: ${report.summary.units}; anchors checked: ${report.summary.anchorsChecked}; diagnostics: ${report.summary.diagnostics}\n`);
+  process.stdout.write(`anchor bytes: ${report.anchors_bytes}\n`);
+  for (const diagnostic of report.diagnostics) process.stdout.write(`${humanDiagnostic(diagnostic)}\n`);
+}
+
 function makeReport(operation, result, semanticStatus, extra = {}) {
   return {
     operation,
@@ -340,7 +363,7 @@ export async function runAuthority(args) {
     process.stdout.write(`${USAGE}\n`);
     return 0;
   }
-  if (!["fmt", "check", "compile", "discover", "query", "context", "refs", "path", "subgraph", "audit", "diff", "impact", "review", "evidence"].includes(subcommand)) {
+  if (!["fmt", "check", "compile", "anchors", "discover", "query", "context", "refs", "path", "subgraph", "audit", "diff", "impact", "review", "evidence"].includes(subcommand)) {
     process.stderr.write(`nimicoding authority refused unknown subcommand: ${subcommand}\n${USAGE}\n`);
     return 2;
   }
@@ -440,6 +463,34 @@ export async function runAuthority(args) {
       const result = await impactAuthorityPaths(parsed.options.beforePath, parsed.options.afterPath, parsed.options.dispositions, { maxBytes: parsed.options.maxBytes });
       const report = makeReport("impact", result, result.ok ? "valid" : "invalid", { payload_bytes: result.payloadBytes, diff: result.diff, impact: result.impact });
       outputReport(report, parsed.options.json);
+      return result.ok ? 0 : 1;
+    }
+    if (subcommand === "anchors") {
+      const result = await anchorsAuthorityRepository(
+        parsed.options.repositoryPath,
+        parsed.options.spec,
+        parsed.options.scopeBindings,
+        {
+          maxUnits: parsed.options.maxUnits,
+          maxAnchors: parsed.options.maxAnchors,
+          maxBytes: parsed.options.maxBytes,
+        },
+      );
+      const report = {
+        operation: "anchors",
+        ok: result.ok,
+        semantic_status: result.complete ? result.ok ? "valid" : "invalid" : "refused",
+        complete: result.complete,
+        partial: result.partial,
+        anchors_bytes: result.anchorsBytes,
+        summary: {
+          units: result.unitCount,
+          anchorsChecked: result.anchorsChecked,
+          diagnostics: result.diagnostics.length,
+        },
+        diagnostics: result.diagnostics,
+      };
+      outputAnchorsReport(report, parsed.options.json);
       return result.ok ? 0 : 1;
     }
     if (subcommand === "evidence") {

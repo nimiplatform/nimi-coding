@@ -112,6 +112,27 @@ pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-byte
 
 对完整 root 执行 `authority check` 是唯一的 .nimi/spec conformance gate。格式化单个文件不代表其语义已被 admission，只检查 changed file 也不能替代 complete-root check。提供 `--scope-bindings <file>` 时，check 还会强制 registered scope 与 active-rule scope use 双向精确匹配；它只校验 binding declarations，不解析 repository paths。
 
+### 静态 authority anchors
+
+`authority anchors` 针对一个 exact Git worktree root 执行有界、只读的词法校验：
+
+```bash
+pnpm exec nimicoding authority anchors . \
+  --spec .nimi/spec \
+  --scope-bindings .nimi/config/authority-scope-bindings.yaml \
+  --max-units 1024 \
+  --max-anchors 4096 \
+  --max-bytes 2097152 \
+  --json
+```
+
+锚文法是封闭且大小写敏感的。一个 **token** 是最大连续非空白序列；未被空白分隔的标点仍属于该 token。
+
+- **A 类——文件路径：** token 至少包含一个 `/`，并且严格以 `.mjs`、`.js`、`.ts`、`.tsx`、`.rs`、`.go`、`.yaml`、`.yml`、`.md`、`.json`、`.proto` 或 `.ps1` 之一结尾。整个 token 必须精确等于 repository root 的 `git ls-files` tracked-file inventory 中的一条路径；不做路径归一化、前缀删除或推断匹配。
+- **B 类——package script：** token `pnpm`、恰好一个 ASCII 空格，再加一个最大连续非空白 script-name token。名称只在包含 `:` 或完整匹配 `[a-z][a-z0-9:-]*` 时进入校验，并且必须是 root `package.json` 的 `scripts` object 自有 exact key。命令不会执行。
+
+只扫描 active unit 的 `meaning`、`statement`、`condition` 和 `failure` 字段。提供 `--scope-bindings` 时，每个 `path_glob` 必须至少匹配一个 tracked file；`*` 不跨 `/`，`?` 匹配一个非 `/` 字符，`**` 可跨路径段。本版的 `module` 和 `command` binding 仍只做结构校验。Human/JSON 结果汇总 `{units, anchorsChecked, diagnostics}`；锚诊断按 unit ID、锚文本、字段和类别排序，并精确标识 unit 与字段。Unit、anchor 和 compact UTF-8 result-byte budget 不足时拒绝整个校验，绝不截断。
+
 Canonical YAML 是封闭的 `format` 加非空 `units` container；Canonical Markdown 是严格的 single-unit profile。当前模型刻意保持紧凑：`Rule` 和 `Definition`、`active` 和 `removed`、`must` 和 `must_not`，以及 authored `applies_to` 和线性 `supersedes` 关系。
 
 如果某个领域需要 grammar 尚不支持的 API、schema、enum、state machine、formula 或 catalog 成员级结构，应把精度保留在 canonical grammar 之外的专业 artifact 中。只有存在显式 admitted project binding 或 adapter 时才能连接；当前 built-in evidence slice 只支持 package-script targets，不支持通用 API、schema、consumer 或 runtime integration。不要向 canonical authority 随意添加字段：unknown field 必须 fail closed，才能避免 consumer 静默忽略原本想表达的 authority。
@@ -236,6 +257,7 @@ Roadmap 当前暂停在已经验证的 baseline。以下是 future candidate lan
 | Find 和 read | `authority discover`、`authority query`、`authority context` |
 | Navigate | `authority refs`、`authority path`、`authority subgraph` |
 | Analyze 和 review | `authority audit`、`authority diff`、`authority impact`、`authority review` |
+| 校验词法 anchors | `authority anchors` |
 | 连接 bounded evidence | `authority evidence` |
 | Project lifecycle | `start`、`sync`、`doctor`、`clear` |
 | 可选 L3 repository governance | `validate-ai-governance` |
@@ -247,6 +269,7 @@ Roadmap 当前暂停在已经验证的 baseline。以下是 future candidate lan
 nimicoding authority fmt <file> [--check] [--json]
 nimicoding authority check <path> [--scope-bindings <file>] [--json]
 nimicoding authority compile <path> [--json]
+nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <n> --max-anchors <n> --max-bytes <n> [--json]
 nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <n> --max-snippet-terms <n> --max-bytes <n> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <n>] [--json]
 nimicoding authority query <path> <id> --max-bytes <n> [--json]
 nimicoding authority context <path> <id> --max-units <n> --max-bytes <n> [--json]

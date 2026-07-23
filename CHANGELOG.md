@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added bounded fail-closed `authority anchors` validation for closed lexical file/script anchors and optional tracked-file scope globs against an exact Git repository root.
 - Added optional fail-closed `authority check --scope-bindings <file>` enforcement for exact bidirectional registration of active-rule scopes without repository path resolution.
 - Added strict single-unit Canonical Markdown and closed multi-unit Canonical YAML `authority fmt`, `authority check`, and package-private deterministic compilation with SourceMaps.
 - Hard-cut read-only fail-closed `authority discover` to `nimicoding.authority-discovery/v2`, adding singular exact kind/owner/scope/lifecycle filters, SourceMapped deterministic normalized-term snippets, and an optional complete M1 direct-authored relation preview; the ranking tuple is unchanged, and the product never selects authority, supplies context, or performs semantic search.

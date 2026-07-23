@@ -1,6 +1,6 @@
 version: 2
 id: nimicoding.authority-authoring
-purpose: Author explicit project authority under .nimi/spec without inference.
+purpose: Author explicit .nimi/spec authority without inference.
 authority_boundary:
   canonical_root: .nimi/spec
   sources: ["*.authority.yaml", "*.authority.md"]
@@ -13,7 +13,7 @@ daily_workflow:
   - Select an ID only from task or product authority. Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one unit, or context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json for its declared outgoing applies_to/supersedes closure. Context is not complete task context.
   - Modify only project-owned canonical authority. Choose every product value before writing; never infer an ID, owner, scope, condition, failure, or relation.
   - Run nimicoding authority fmt <changed-file> for each changed file.
-  - Run nimicoding authority check <complete-path> [--scope-bindings <file>] --json; then compile; registry equals active scopes.
+  - Run nimicoding authority check <complete-path> [--scope-bindings <file>] --json; then compile. For repository anchors run nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> --json.
   - For semantic changes, run diff and impact with explicit budgets and complete inputs; address every obligation and rerun impact.
   - Never continue from compiler diagnostics, unknown IDs, budget failures, or partial/guessed results.
 
@@ -22,14 +22,14 @@ source_profiles:
     shape: A closed top-level mapping with exact format nimicoding.authority/v1 and one non-empty units sequence; each item is one closed unit mapping.
     identity: Every unit has an explicit stable ID; file organization and order never define identity.
   markdown:
-    shape: Exactly one unit per file. Front matter carries format, id, kind, owner, lifecycle, and, for active rules, modality and scope; relations are also front matter.
-    title: One plain level-one heading.
+    shape: One unit per file. Front matter carries format, id, kind, owner, lifecycle, rule modality/scope, and relations.
+    title: One plain H1.
     sections:
       active_definition: [Meaning]
       active_rule: [Statement, Condition, Failure]
       removed_unit: [Removal reason]
-    boundary: Each section is one plain-text line; no free prose or unknown Markdown structures.
-  shared_text_rule: Text fields are non-empty trimmed single-line Unicode. Follow diagnostics for lexical violations.
+    boundary: Each section is one plain-text line; no free prose or unknown structures.
+  shared_text_rule: Text fields are non-empty trimmed single-line Unicode.
 
 common_fields:
   id: Stable dot-separated lower-case identity; never reuse a removed ID.
@@ -61,11 +61,11 @@ unit_shapes:
 relation_rules:
   applies_to: Required one or more times from each active rule to active definitions only.
   supersedes: Optional from active or removed to one removed unit of the same kind; at most one incoming/outgoing edge, acyclic linear lineage.
-  resolution: Targets resolve by exact ID in the complete checked input. Invalid, dangling, mismatched, cyclic, duplicate, or inferred edges fail.
+  resolution: Targets resolve by exact ID in the complete input; invalid, dangling, mismatched, cyclic, duplicate, or inferred edges fail.
 
 formatter_and_diagnostics:
-  - fmt accepts one file, canonicalizes only explicit structure, and does not admit authority or invent keys, values, headings, semantics, or relations.
-  - check/compile use the complete path and fail closed; compile emits no public or partial AuthorityIR.
+  - fmt canonicalizes one file but does not admit authority or invent content.
+  - check/compile use the complete path and fail closed; no public or partial AuthorityIR is emitted.
   - Diagnostics give locations, reasons, conflicts, and repair categories, never product values.
   - Fix values only from task or product authority. Do not use defaults, fallback data, historical inference, internal contracts, or wildcard corpus reading.
 
@@ -142,6 +142,6 @@ canonical_examples:
             target: rule.checkout-no-anonymous-v0
 
 final_boundaries:
-  - Canonical authority is only project-authored *.authority.yaml or *.authority.md under .nimi/spec; derived outputs and local evidence are not authority.
-  - All derived read commands are bounded and read-only; none selects authority, supplies complete task context, or proves completion.
-  - Unsupported or historical formats are not inferred, migrated, or admitted.
+  - Authority is only project-authored *.authority.yaml or *.authority.md under .nimi/spec; derived/local output is not authority.
+  - Derived reads are bounded and read-only; none selects authority, supplies complete task context, or proves completion.
+  - Unsupported or historical formats are never inferred or admitted.

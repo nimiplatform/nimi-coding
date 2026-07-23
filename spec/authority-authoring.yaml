@@ -91,6 +91,16 @@ commands:
     writes: none
     ir_visibility: package_private
     public_json: operation_counts_and_diagnostics_only
+  anchors:
+    syntax: nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> [--json]
+    writes_and_execution: none
+    active_fields: [meaning, statement, condition, failure]
+    grammar: closed_maximal_non_whitespace_path_and_pnpm_script_tokens_defined_by_nimicoding.authority-anchors.v1
+    resolution: exact_Git_tracked_file_or_root_package_script_membership_without_inference
+    scope_path_globs: every_path_glob_matches_at_least_one_Git_tracked_file
+    module_and_command_bindings: structurally_admitted_but_not_resolved
+    budgets: complete_active_units_anchor_occurrences_and_compact_UTF-8_product_bytes
+    partial_result: forbidden
 compiler:
   ordering: [unit_id, scope_lexical, relation_type_then_target]
   output: [AuthorityIR, SourceMap]
@@ -107,5 +117,5 @@ runtime_authority:
   downstream_projection_cannot_change_compiler: true
   historical_document_compatibility_or_inference: forbidden
   sole_downstream_conformance_gate: authority_check_on_complete_canonical_root
-admitted_downstream_consumers: [bounded_lexical_candidate_discovery, exact_query, bounded_context, bounded_graph_navigation, project_bound_deterministic_audit, SARIF_projection, semantic_diff, declared_impact]
+admitted_downstream_consumers: [bounded_lexical_candidate_discovery, exact_query, bounded_context, bounded_graph_navigation, static_lexical_anchor_validation, project_bound_deterministic_audit, SARIF_projection, semantic_diff, declared_impact]
 not_admitted: [historical_format_reconstruction, profile_specific_validation, multi_unit_markdown, sqlite, cache, incremental, semantic_search, embedding, visualization, ai_execution, Atlas, qualification, final_cutover]

@@ -123,7 +123,7 @@ test("public CLI exposes one authority plane and removed commands are unavailabl
     .map((line) => line.trim().split(/\s+/)[1])
     .filter((command) => !command.startsWith("--"));
   assert.deepEqual(retained, [
-    "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority",
+    "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority", "authority",
     "start", "sync", "clear", "doctor", "validate-ai-governance",
   ]);
 
@@ -204,6 +204,7 @@ test("fresh start installs only the compact guide, managed instructions, and ign
   assert.equal(guide.unit_shapes.active_definition.fixed.lifecycle, "active");
   assert.equal(guide.unit_shapes.removed_tombstone.fixed.lifecycle, "removed");
   assert.match(guide.daily_workflow.join(" "), /discover.*query.*context.*fmt.*check.*compile.*diff and impact/);
+  assert.match(guide.daily_workflow.join(" "), /authority anchors <repository-path> --spec <corpus-path> \[--scope-bindings <file>\] --max-units <positive-safe-integer> --max-anchors <positive-safe-integer> --max-bytes <positive-safe-integer> --json\./);
   assert.equal(typeof guide.canonical_examples.complete_yaml_lifecycle, "string");
 });
 

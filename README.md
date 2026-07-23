@@ -112,6 +112,27 @@ pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-byte
 
 `authority check` on the complete root is the sole .nimi/spec conformance gate. Formatting a file does not admit its semantics, and checking only a changed file cannot replace the complete-root check. When `--scope-bindings <file>` is supplied, check also requires an exact bidirectional match between registered scopes and active-rule scope use; it validates binding declarations without resolving repository paths.
 
+### Static authority anchors
+
+`authority anchors` performs bounded, read-only lexical validation against one exact Git worktree root:
+
+```bash
+pnpm exec nimicoding authority anchors . \
+  --spec .nimi/spec \
+  --scope-bindings .nimi/config/authority-scope-bindings.yaml \
+  --max-units 1024 \
+  --max-anchors 4096 \
+  --max-bytes 2097152 \
+  --json
+```
+
+The anchor grammar is closed and case-sensitive. A **token** is one maximal non-whitespace sequence; punctuation attached without whitespace remains part of that token.
+
+- **Class A — file path:** a token containing at least one `/` and ending exactly in one of `.mjs`, `.js`, `.ts`, `.tsx`, `.rs`, `.go`, `.yaml`, `.yml`, `.md`, `.json`, `.proto`, or `.ps1`. The whole token must equal a path returned by the repository-root `git ls-files` tracked-file inventory. There is no path normalization, prefix removal, or inferred match.
+- **Class B — package script:** the token `pnpm`, exactly one ASCII space, then one maximal non-whitespace script-name token. The name is admitted when it contains `:` or fully matches `[a-z][a-z0-9:-]*`; it must be an exact own key of the root `package.json` `scripts` object. Nothing is executed.
+
+Only active-unit `meaning`, `statement`, `condition`, and `failure` fields are scanned. With `--scope-bindings`, every `path_glob` must match at least one tracked file; `*` excludes `/`, `?` matches one non-`/` character, and `**` crosses path segments. `module` and `command` bindings remain structure-only in this version. Human and JSON results report `{units, anchorsChecked, diagnostics}`; anchor diagnostics are ordered by unit ID, anchor text, field, and class and identify the exact unit and field. Unit, anchor, and compact UTF-8 result-byte budgets reject the whole validation rather than truncating it.
+
 Canonical YAML is a closed `format` plus non-empty `units` container. Canonical Markdown is a strict single-unit profile. The model is intentionally compact: `Rule` and `Definition`, `active` and `removed`, `must` and `must_not`, plus authored `applies_to` and linear `supersedes` relations.
 
 If a domain needs member-level API, schema, enum, state-machine, formula, or catalog structure that this grammar does not support, keep that precision in a specialized artifact outside the canonical grammar. Connect it only through an explicitly admitted project binding or adapter; the current built-in evidence slice supports package-script targets, not general API, schema, consumer, or runtime integration. Do not add arbitrary canonical fields: unknown fields fail closed so that no consumer can silently ignore intended authority.
@@ -236,6 +257,7 @@ The current public integration surface is the CLI. All budgets are explicit posi
 | Find and read | `authority discover`, `authority query`, `authority context` |
 | Navigate | `authority refs`, `authority path`, `authority subgraph` |
 | Analyze and review | `authority audit`, `authority diff`, `authority impact`, `authority review` |
+| Validate lexical anchors | `authority anchors` |
 | Connect bounded evidence | `authority evidence` |
 | Project lifecycle | `start`, `sync`, `doctor`, `clear` |
 | Optional L3 repository governance | `validate-ai-governance` |
@@ -247,6 +269,7 @@ The current public integration surface is the CLI. All budgets are explicit posi
 nimicoding authority fmt <file> [--check] [--json]
 nimicoding authority check <path> [--scope-bindings <file>] [--json]
 nimicoding authority compile <path> [--json]
+nimicoding authority anchors <repository-path> --spec <corpus-path> [--scope-bindings <file>] --max-units <n> --max-anchors <n> --max-bytes <n> [--json]
 nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <n> --max-snippet-terms <n> --max-bytes <n> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <n>] [--json]
 nimicoding authority query <path> <id> --max-bytes <n> [--json]
 nimicoding authority context <path> <id> --max-units <n> --max-bytes <n> [--json]
