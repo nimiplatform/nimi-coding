@@ -110,7 +110,7 @@ pnpm exec nimicoding authority check .nimi/spec --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 ```
 
-`authority check` on the complete root is the sole .nimi/spec conformance gate. Formatting a file does not admit its semantics, and checking only a changed file cannot replace the complete-root check.
+`authority check` on the complete root is the sole .nimi/spec conformance gate. Formatting a file does not admit its semantics, and checking only a changed file cannot replace the complete-root check. When `--scope-bindings <file>` is supplied, check also requires an exact bidirectional match between registered scopes and active-rule scope use; it validates binding declarations without resolving repository paths.
 
 Canonical YAML is a closed `format` plus non-empty `units` container. Canonical Markdown is a strict single-unit profile. The model is intentionally compact: `Rule` and `Definition`, `active` and `removed`, `must` and `must_not`, plus authored `applies_to` and linear `supersedes` relations.
 
@@ -245,7 +245,7 @@ The current public integration surface is the CLI. All budgets are explicit posi
 
 ```text
 nimicoding authority fmt <file> [--check] [--json]
-nimicoding authority check <path> [--json]
+nimicoding authority check <path> [--scope-bindings <file>] [--json]
 nimicoding authority compile <path> [--json]
 nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <n> --max-snippet-terms <n> --max-bytes <n> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <n>] [--json]
 nimicoding authority query <path> <id> --max-bytes <n> [--json]

@@ -4,7 +4,7 @@ import { localize, styleCommand, styleHeading, styleMuted } from "./lib/ui.mjs";
 export function helpText() {
   const commands = [
     "nimicoding authority fmt <file> [--check] [--json]",
-    "nimicoding authority check <path> [--json]",
+    "nimicoding authority check <path> [--scope-bindings <file>] [--json]",
     "nimicoding authority compile <path> [--json]",
     "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
     "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",

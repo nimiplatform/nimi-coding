@@ -13,7 +13,7 @@ import { authorityAuditResultToSarif } from "../lib/authority/sarif.mjs";
 
 const USAGE = [
   "nimicoding authority fmt <file> [--check] [--json]",
-  "nimicoding authority check <path> [--json]",
+  "nimicoding authority check <path> [--scope-bindings <file>] [--json]",
   "nimicoding authority compile <path> [--json]",
   "nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <positive-safe-integer> --max-snippet-terms <positive-safe-integer> --max-bytes <positive-safe-integer> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <positive-safe-integer>] [--json]",
   "nimicoding authority query <path> <id> --max-bytes <positive-integer> [--json]",
@@ -31,7 +31,7 @@ const USAGE = [
 const AUTHORITY_IDENTIFIER = /^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 function parseOptions(subcommand, args) {
-  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, probeResults: null, kind: null, owner: null, scope: null, lifecycle: null, direction: null, previewDirection: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxSnippetTerms: null, maxUnits: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
+  const options = { json: false, sarif: false, check: false, path: null, repositoryPath: null, base: null, id: null, fromId: null, toId: null, query: null, beforePath: null, afterPath: null, dispositions: null, bindings: null, scopeBindings: null, probeResults: null, kind: null, owner: null, scope: null, lifecycle: null, direction: null, previewDirection: null, traversal: null, relations: null, depth: null, maxHops: null, maxCandidates: null, maxSnippetTerms: null, maxUnits: null, maxBindings: null, maxLocators: null, maxEdges: null, maxInputBytes: null, maxBytes: null };
   const graphCommands = ["refs", "path", "subgraph"];
   const integerOptions = {
     "--max-candidates": ["maxCandidates", ["discover"]],
@@ -116,6 +116,11 @@ function parseOptions(subcommand, args) {
         const value = args[index + 1];
         if (!value || value.startsWith("--")) return { ok: false, error: `authority ${subcommand} requires --bindings followed by one file` };
         options.bindings = value;
+        index += 1;
+      } else if (arg === "--scope-bindings" && subcommand === "check" && options.scopeBindings === null) {
+        const value = args[index + 1];
+        if (!value || value.startsWith("--")) return { ok: false, error: "authority check requires --scope-bindings followed by one file" };
+        options.scopeBindings = value;
         index += 1;
       } else if (arg === "--probe-results" && subcommand === "evidence" && options.probeResults === null) {
         const value = args[index + 1];
@@ -352,7 +357,7 @@ export async function runAuthority(args) {
       return result.ok ? 0 : 1;
     }
     if (subcommand === "check") {
-      const result = await checkAuthorityPath(parsed.options.path);
+      const result = await checkAuthorityPath(parsed.options.path, { scopeBindings: parsed.options.scopeBindings });
       const report = makeReport("check", result, result.ok ? "valid" : "invalid");
       outputReport(report, parsed.options.json);
       return result.ok ? 0 : 1;

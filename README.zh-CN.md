@@ -110,7 +110,7 @@ pnpm exec nimicoding authority check .nimi/spec --json
 pnpm exec nimicoding authority query .nimi/spec rule.checkout-session --max-bytes 32768 --json
 ```
 
-对完整 root 执行 `authority check` 是唯一的 .nimi/spec conformance gate。格式化单个文件不代表其语义已被 admission，只检查 changed file 也不能替代 complete-root check。
+对完整 root 执行 `authority check` 是唯一的 .nimi/spec conformance gate。格式化单个文件不代表其语义已被 admission，只检查 changed file 也不能替代 complete-root check。提供 `--scope-bindings <file>` 时，check 还会强制 registered scope 与 active-rule scope use 双向精确匹配；它只校验 binding declarations，不解析 repository paths。
 
 Canonical YAML 是封闭的 `format` 加非空 `units` container；Canonical Markdown 是严格的 single-unit profile。当前模型刻意保持紧凑：`Rule` 和 `Definition`、`active` 和 `removed`、`must` 和 `must_not`，以及 authored `applies_to` 和线性 `supersedes` 关系。
 
@@ -245,7 +245,7 @@ Roadmap 当前暂停在已经验证的 baseline。以下是 future candidate lan
 
 ```text
 nimicoding authority fmt <file> [--check] [--json]
-nimicoding authority check <path> [--json]
+nimicoding authority check <path> [--scope-bindings <file>] [--json]
 nimicoding authority compile <path> [--json]
 nimicoding authority discover <path> <query> [--kind <definition|rule>] [--owner <exact-owner>] [--scope <exact-scope>] [--lifecycle <active|removed>] --max-candidates <n> --max-snippet-terms <n> --max-bytes <n> [--preview-direction <incoming|outgoing|both> --relations <comma-separated-relation-types> --max-edges <n>] [--json]
 nimicoding authority query <path> <id> --max-bytes <n> [--json]

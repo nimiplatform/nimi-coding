@@ -71,8 +71,21 @@ commands:
     structural_discriminants: [format, kind, lifecycle]
     invention: forbidden
   check:
-    syntax: nimicoding authority check <path> [--json]
+    syntax: nimicoding authority check <path> [--scope-bindings <file>] [--json]
     writes: none
+    no_scope_bindings_flag: exact_existing_check_behavior
+    scope_bindings:
+      format: nimicoding.scope-bindings/v1
+      document: closed_mapping_with_exact_format_and_non_empty_scopes_sequence
+      scope_entry: closed_mapping_with_one_non_empty_single_line_scope_and_non_empty_bindings_sequence
+      binding_entry: closed_mapping_with_kind_and_non_empty_single_line_value
+      binding_kinds: [path_glob, module, command]
+      duplicate_scope: rejected
+      enforcement: exact_bidirectional_set_equality_between_registered_scopes_and_active_rule_scope_use
+      unregistered_use_diagnostic: every_scope_and_using_unit_ID
+      dead_registration_diagnostic: every_registered_scope_without_active_rule_use
+      repository_path_resolution: forbidden
+      partial_result: forbidden
   compile:
     syntax: nimicoding authority compile <path> [--json]
     writes: none

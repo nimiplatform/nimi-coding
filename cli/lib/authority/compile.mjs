@@ -1,5 +1,6 @@
 import { compareText } from "./diagnostics.mjs";
 import { formattingDiagnostics, parseAuthorityPath } from "./format.mjs";
+import { validateAuthorityScopeBindings } from "./scope-bindings.mjs";
 import { buildSourceMap } from "./source-map.mjs";
 import { validateAuthoritySources } from "./validate.mjs";
 
@@ -38,13 +39,20 @@ async function admittedSources(inputPath) {
   return { ok: true, diagnostics: [], parsed };
 }
 
-export async function checkAuthorityPath(inputPath) {
+export async function checkAuthorityPath(inputPath, { scopeBindings = null } = {}) {
   const result = await admittedSources(inputPath);
-  return {
+  if (!result.ok || scopeBindings === null) return {
     ok: result.ok,
     diagnostics: result.diagnostics,
     fileCount: result.parsed.files.length,
     unitCount: result.ok ? result.parsed.sources.length : 0,
+  };
+  const scopeValidation = await validateAuthorityScopeBindings(result.parsed.sources, scopeBindings);
+  return {
+    ok: scopeValidation.ok,
+    diagnostics: scopeValidation.diagnostics,
+    fileCount: result.parsed.files.length,
+    unitCount: scopeValidation.ok ? result.parsed.sources.length : 0,
   };
 }
 

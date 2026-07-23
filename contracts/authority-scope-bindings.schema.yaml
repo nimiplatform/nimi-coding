@@ -1,0 +1,15 @@
+version: 1
+contract:
+  id: nimicoding.scope-bindings.v1
+  owner: nimi-coding
+  visibility: package_internal
+format: nimicoding.scope-bindings/v1
+fields:
+  top: [format, scopes]
+  scope: [scope, bindings]
+  binding: [kind, value]
+binding_kinds: [path_glob, module, command]
+text_values:
+  unicode: well_formed_scalar_sequence
+  non_empty: true
+  line_break_code_points: [U+000A, U+000B, U+000C, U+000D, U+0085, U+2028, U+2029]

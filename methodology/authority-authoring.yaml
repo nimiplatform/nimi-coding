@@ -13,7 +13,7 @@ daily_workflow:
   - Select an ID only from task or product authority. Use nimicoding authority query <path> <id> --max-bytes <positive-integer> --json for one unit, or context <path> <id> --max-units <positive-integer> --max-bytes <positive-integer> --json for its declared outgoing applies_to/supersedes closure. Context is not complete task context.
   - Modify only project-owned canonical authority. Choose every product value before writing; never infer an ID, owner, scope, condition, failure, or relation.
   - Run nimicoding authority fmt <changed-file> for each changed file.
-  - Run nimicoding authority check <complete-path> --json, then compile the same complete path only after check succeeds.
+  - Run nimicoding authority check <complete-path> [--scope-bindings <file>] --json; then compile; registry equals active scopes.
   - For semantic changes, run diff and impact with explicit budgets and complete inputs; address every obligation and rerun impact.
   - Never continue from compiler diagnostics, unknown IDs, budget failures, or partial/guessed results.
 
